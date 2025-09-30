@@ -1,11 +1,14 @@
-import { BaseMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
-import { StateGraph, START, END, Annotation, MemorySaver } from "@langchain/langgraph";
-import { ChatOpenAI } from "@langchain/openai";
+import { HumanMessage } from "@langchain/core/messages";
+import { StateGraph, START, END, MemorySaver } from "@langchain/langgraph";
 import { ActivityTypes } from "@microsoft/agents-activity";
 import {
   AgentApplicationBuilder,
   TurnContext,
 } from "@microsoft/agents-hosting";
+import { AgentState, AgentStateType } from "./state";
+import { supervisorAgent } from "./agents/supervisor";
+import { chatAgent } from "./agents/chatAgent";
+import { elicitationAgent } from "./agents/elicitationAgent";
 
 // Debug: Check if LangSmith env vars are loaded
 console.log("LANGCHAIN_TRACING_V2:", process.env.LANGCHAIN_TRACING_V2);
@@ -13,8 +16,8 @@ console.log("LANGCHAIN_API_KEY:", process.env.LANGCHAIN_API_KEY ? "SET" : "NOT S
 console.log("LANGCHAIN_PROJECT:", process.env.LANGCHAIN_PROJECT);
 
 // ============================================================================
-// PHASE 1: BASIC CHAT AGENT
-// Simple conversational agent with no tools, no routing, just natural chat
+// PHASE 2: SUPERVISOR + MODE ROUTING
+// Multi-agent system with supervisor routing between chat and elicitation
 // ============================================================================
 
 export const cfdAgent = new AgentApplicationBuilder().build();
@@ -27,70 +30,50 @@ cfdAgent.onConversationUpdate("membersAdded", async (context: TurnContext) => {
 });
 
 // ============================================================================
-// STATE DEFINITION
+// ROUTING LOGIC
 // ============================================================================
 
-const BasicState = Annotation.Root({
-  messages: Annotation<BaseMessage[]>({
-    reducer: (x, y) => x.concat(y),
-    default: () => [],
-  }),
-});
+/**
+ * Determines which agent to route to based on supervisor's decision
+ */
+function routeToAgent(state: AgentStateType): string {
+  const nextAgent = state.next || "chatAgent";
 
-// ============================================================================
-// LLM INITIALIZATION (OpenAI GPT-5)
-// ============================================================================
+  console.log(`[Router] Routing to: ${nextAgent}`);
 
-const llm = new ChatOpenAI({
-  model: "gpt-5-nano",
-  apiKey: process.env.OPENAI_API_KEY,
-});
+  // Route to the appropriate agent or end
+  if (nextAgent === "elicitationAgent") {
+    return "elicitationAgent";
+  } else if (nextAgent === "chatAgent") {
+    return "chatAgent";
+  }
 
-// ============================================================================
-// SYSTEM PROMPT (GPT-5 Format with Markdown)
-// ============================================================================
-
-const SYSTEM_PROMPT = `**Role:**
-You are a friendly, helpful assistant for internal employees.
-You can chat about anything - answer general questions, discuss work topics, or just have a conversation.
-
-**Instructions:**
-1. Engage naturally with the user based on their message
-2. Keep responses brief (2-3 sentences typical unless more detail is needed)
-3. Be professional but friendly and conversational
-4. Answer questions directly and clearly
-5. If you don't know something, say so honestly
-
-**Tone:**
-Conversational, helpful, concise. Avoid being overly formal or robotic.`;
-
-// ============================================================================
-// CHATBOT NODE
-// ============================================================================
-
-async function chatbotNode(state: typeof BasicState.State) {
-  // Add system prompt at the beginning if not already present
-  const hasSystemMessage = state.messages.some(msg => msg._getType() === "system");
-  const messages = hasSystemMessage
-    ? state.messages
-    : [new SystemMessage(SYSTEM_PROMPT), ...state.messages];
-
-  const response = await llm.invoke(messages);
-  return { messages: [response] };
+  // Default to chat agent
+  return "chatAgent";
 }
 
 // ============================================================================
 // LANGGRAPH CONSTRUCTION
-// Simple linear flow: START → chatbot → END
-// With MemorySaver to maintain conversation context across turns
+// Supervisor pattern: supervisor → (chatAgent | elicitationAgent) → END
+// One user message = one agent response (turn-based)
 // ============================================================================
 
 const checkpointer = new MemorySaver();
 
-const graphBuilder = new StateGraph(BasicState)
-  .addNode("chatbot", chatbotNode)
-  .addEdge(START, "chatbot")
-  .addEdge("chatbot", END);
+const graphBuilder = new StateGraph(AgentState)
+  .addNode("supervisor", supervisorAgent)
+  .addNode("chatAgent", chatAgent)
+  .addNode("elicitationAgent", elicitationAgent)
+  // Start with supervisor
+  .addEdge(START, "supervisor")
+  // Supervisor routes conditionally to either agent
+  .addConditionalEdges("supervisor", routeToAgent, {
+    chatAgent: "chatAgent",
+    elicitationAgent: "elicitationAgent",
+  })
+  // Both agents go directly to END (return response to user)
+  .addEdge("chatAgent", END)
+  .addEdge("elicitationAgent", END);
 
 const graph = graphBuilder.compile({ checkpointer });
 
@@ -102,6 +85,8 @@ cfdAgent.onActivity(ActivityTypes.Message, async (context) => {
   const userMessage = context.activity.text!;
   const conversationId = context.activity.conversation!.id;
 
+  console.log(`\n[User] ${userMessage}`);
+
   // Invoke the LangGraph with conversation-specific thread
   const result = await graph.invoke(
     {
@@ -112,12 +97,14 @@ cfdAgent.onActivity(ActivityTypes.Message, async (context) => {
     }
   );
 
-  // Extract the assistant's response
+  // Extract the assistant's response (last message)
   const lastMessage = result.messages[result.messages.length - 1];
   const responseText =
     typeof lastMessage.content === "string"
       ? lastMessage.content
       : JSON.stringify(lastMessage.content);
+
+  console.log(`[Assistant] ${responseText}\n`);
 
   // Send response back to user
   await context.sendActivity(responseText);
