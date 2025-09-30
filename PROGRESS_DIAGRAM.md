@@ -1,6 +1,6 @@
 # CFD Agent - Current Implementation Progress
 
-## Phase 1-3 Conversational Flow Diagram
+## Phase 1-3 Conversational Flow Diagram (Simplified Architecture)
 
 ```mermaid
 graph TD
@@ -22,34 +22,24 @@ graph TD
     ChatLLM --> ChatResponse[Return Response Message]
     ChatResponse --> EndTurn1[END - Return to User]
 
-    %% Elicitation Agent Path
-    RouteDecision -->|next = elicitationAgent| ElicitCheck{First Time Entry?<br/>elicitationStarted?}
+    %% Simplified Elicitation Agent Path - Single LLM Call
+    RouteDecision -->|next = elicitationAgent| ElicitAgent[ElicitationAgent]
+    ElicitAgent --> BuildPrompt[Build System Prompt:<br/>- Remaining fields<br/>- Collected fields<br/>- Completion %]
+    BuildPrompt --> AddHistory[Add Full Conversation History]
+    AddHistory --> AddFocus{First Entry?}
+    AddFocus -->|No| FocusMsg[Add Focus Instruction:<br/>Latest user message]
+    AddFocus -->|Yes| SingleLLM[Single LLM Call with Structured Output]
+    FocusMsg --> SingleLLM
 
-    %% First Time Elicitation
-    ElicitCheck -->|false<br/>First Time| PrePopulate[prepopulateFields]
-    PrePopulate --> PrePopLLM[LLM Call with Structured Output:<br/>Extract from History]
-    PrePopLLM --> PrePopUpdate[Update State:<br/>collectedFields<br/>fieldsMarkedUnknown<br/>elicitationStarted=true]
-    PrePopUpdate --> GenInitial[Generate Initial Elicitation Message]
-    GenInitial --> InitialLLM[LLM Call: Show Questions]
-    InitialLLM --> InitialMsg[Return Initial Elicitation Message]
-    InitialMsg --> CompletionCheck1{Check Completion:<br/>areAllRequiredFieldsComplete?}
-
-    %% Subsequent Elicitation Turns
-    ElicitCheck -->|true<br/>Subsequent Turn| ExtractFields[Extract Fields from User Response]
-    ExtractFields --> ExtractLLM[LLM Call with Structured Output:<br/>FieldExtractionSchema]
-    ExtractLLM --> ExtractResult[Get: updates, marked_unknown,<br/>confidence, reasoning]
-    ExtractResult --> UpdateFields[Update State:<br/>collectedFields += updates<br/>fieldsMarkedUnknown += marked_unknown]
-    UpdateFields --> GenResponse[Generate Conversational Response]
-    GenResponse --> ResponseLLM[LLM Call: Acknowledge & Ask Remaining]
-    ResponseLLM --> ElicitMsg[Return Elicitation Response]
-    ElicitMsg --> CompletionCheck2{Check Completion:<br/>areAllRequiredFieldsComplete?}
+    SingleLLM --> StructuredOutput[FieldExtractionSchema Output:<br/>updates, marked_unknown,<br/>reasoning, followup_response]
+    StructuredOutput --> FilterNull[Filter null/empty values<br/>from updates]
+    FilterNull --> UpdateState[Update State:<br/>collectedFields += updates<br/>fieldsMarkedUnknown += marked_unknown]
+    UpdateState --> ReturnFollowup[Return followup_response<br/>as AIMessage]
+    ReturnFollowup --> CompletionCheck{Check Completion:<br/>areAllRequiredFieldsComplete?}
 
     %% Completion Routing
-    CompletionCheck1 -->|Incomplete| EndTurn2[END - Return to User]
-    CompletionCheck2 -->|Incomplete| EndTurn2
-
-    CompletionCheck1 -->|Complete| TeamMatch[TeamMatchingAgent<br/>Phase 4 Stub]
-    CompletionCheck2 -->|Complete| TeamMatch
+    CompletionCheck -->|Incomplete| EndTurn2[END - Return to User]
+    CompletionCheck -->|Complete| TeamMatch[TeamMatchingAgent<br/>Phase 4 Stub]
 
     TeamMatch --> LogComplete[Log Collected Fields Summary]
     LogComplete --> TeamMsg[Return Completion Message]
@@ -67,16 +57,16 @@ graph TD
     classDef llmNode fill:#fff4e1,stroke:#333,stroke-width:2px
     classDef stateNode fill:#e1ffe1,stroke:#333,stroke-width:2px
     classDef decisionNode fill:#ffe1ff,stroke:#333,stroke-width:2px
-    classDef toolNode fill:#ffe1e1,stroke:#333,stroke-width:2px
+    classDef processNode fill:#ffe1e1,stroke:#333,stroke-width:2px
 
-    class Supervisor,ChatAgent,TeamMatch agentNode
-    class SupervisorLLM,ChatLLM,PrePopLLM,InitialLLM,ExtractLLM,ResponseLLM llmNode
-    class UpdateMode,PrePopUpdate,UpdateFields,UpdateTeamMode stateNode
-    class RouteDecision,ElicitCheck,CompletionCheck1,CompletionCheck2 decisionNode
-    class PrePopulate,ExtractFields toolNode
+    class Supervisor,ChatAgent,ElicitAgent,TeamMatch agentNode
+    class SupervisorLLM,ChatLLM,SingleLLM llmNode
+    class UpdateMode,UpdateState,UpdateTeamMode stateNode
+    class RouteDecision,AddFocus,CompletionCheck decisionNode
+    class BuildPrompt,AddHistory,FocusMsg,StructuredOutput,FilterNull,ReturnFollowup processNode
 ```
 
-## State Schema
+## State Schema (Simplified)
 
 ```mermaid
 graph LR
@@ -85,10 +75,9 @@ graph LR
     State --> Next[next: string<br/>Next agent to route to]
     State --> CollectedFields[collectedFields: CollectedFields<br/>request_summary, business_impact,<br/>urgency, affected_users]
     State --> FieldsUnknown[fieldsMarkedUnknown: string<br/>Fields user doesn't know]
-    State --> ElicitStarted[elicitationStarted: boolean<br/>Pre-population flag]
 
     classDef stateField fill:#e1ffe1,stroke:#333,stroke-width:1px
-    class Messages,Mode,Next,CollectedFields,FieldsUnknown,ElicitStarted stateField
+    class Messages,Mode,Next,CollectedFields,FieldsUnknown stateField
 ```
 
 ## Agent Responsibilities
@@ -110,11 +99,11 @@ graph TD
     end
 
     subgraph ElicitationAgent
-        E1[First time: Pre-populate from history]
-        E2[Extract fields with structured output]
-        E3[Handle bulk/single/corrections]
-        E4[Track I don't know responses]
-        E5[Show only missing fields]
+        E1[Single LLM call with full history]
+        E2[Structured output extraction + response]
+        E3[Extract: updates, marked_unknown, followup_response]
+        E4[Filter null/empty values]
+        E5[Return followup_response directly]
         E1 --> E2 --> E3 --> E4 --> E5
     end
 
@@ -129,44 +118,43 @@ graph TD
     class SupervisorAgent,ChatAgent,ElicitationAgent,TeamMatchingAgent agent
 ```
 
-## Field Collection Process
+## Field Collection Process (Simplified)
 
 ```mermaid
 sequenceDiagram
     participant User
     participant Supervisor
     participant Elicitation
-    participant PrePopulate
-    participant Extraction
+    participant SingleLLM
     participant Completion
 
     User->>Supervisor: "I need to submit a request about slow app"
     Supervisor->>Supervisor: Detect request intent
     Supervisor->>Elicitation: Route to elicitationAgent
 
-    Note over Elicitation: First Time Entry (elicitationStarted=false)
+    Note over Elicitation: Single LLM Call with Full History
 
-    Elicitation->>PrePopulate: Extract from conversation history
-    PrePopulate->>PrePopulate: LLM structured output
-    PrePopulate-->>Elicitation: collectedFields: {request_summary: "slow app"}
+    Elicitation->>Elicitation: Build prompt: remaining fields + collected fields
+    Elicitation->>SingleLLM: Invoke with full conversation history
+    SingleLLM->>SingleLLM: Extract + Generate response in one call
+    SingleLLM-->>Elicitation: {updates, marked_unknown, followup_response}
 
-    Elicitation->>Elicitation: Generate questions for missing fields
-    Elicitation-->>User: "How is this impacting your work? How urgent?"
+    Elicitation->>Elicitation: Filter null/empty values
+    Elicitation-->>User: followup_response: "Got it - slow app. How is this impacting your work?"
 
     User->>Supervisor: "It's blocking sales team, very urgent"
     Supervisor->>Elicitation: Route to elicitationAgent
 
-    Note over Elicitation: Subsequent Turn (elicitationStarted=true)
+    Note over Elicitation: Single LLM Call Again (with updated history)
 
-    Elicitation->>Extraction: Extract from latest message
-    Extraction->>Extraction: LLM structured output
-    Extraction-->>Elicitation: updates: {business_impact, urgency: "high", affected_users}
+    Elicitation->>SingleLLM: Full history + focus on latest message
+    SingleLLM-->>Elicitation: {updates: {business_impact, urgency, affected_users}, followup_response}
 
     Elicitation->>Completion: Check if all required fields complete
     Completion-->>Elicitation: Complete ✅
 
     Elicitation->>TeamMatching: Route to teamMatching
-    TeamMatching-->>User: "Great! I've collected all information..."
+    TeamMatching-->>User: "Perfect! I have everything I need..."
 ```
 
 ## Key Decision Points
@@ -174,11 +162,11 @@ sequenceDiagram
 | Decision Point | Logic | Outcomes |
 |---------------|-------|----------|
 | **Supervisor Routing** | Analyze user intent + current mode | → chatAgent<br>→ elicitationAgent |
-| **First Time Elicitation** | Check `elicitationStarted` flag | false → Pre-populate from history<br>true → Extract from latest message |
-| **Field Extraction** | LLM with `FieldExtractionSchema` | Extract: updates, marked_unknown, confidence |
+| **Elicitation Focus** | Check if first entry (collectedFields empty) | First → Analyze full history<br>Subsequent → Focus on latest + full history context |
+| **Field Extraction** | Single LLM call with `FieldExtractionSchema` | Extract: updates, marked_unknown, reasoning, followup_response |
 | **Completion Check** | All required fields filled OR marked unknown | Complete → teamMatching<br>Incomplete → END (ask more) |
 
-## Tools & Helpers
+## Tools & Helpers (Simplified)
 
 ```mermaid
 graph LR
@@ -187,23 +175,21 @@ graph LR
     end
 
     subgraph Tools
-        Extract[fieldExtraction.ts<br/>- getMissingFields<br/>- formatQuestions<br/>- calculateCompletion<br/>- FieldExtractionSchema]
+        Extract[fieldExtraction.ts<br/>- formatRemainingFields<br/>- formatCollectedFieldsSummary<br/>- calculateCompletionPercentage<br/>- isValidFieldValue<br/>- FieldExtractionSchema]
     end
 
     subgraph Functions
-        PrePop[prepopulateFields.ts<br/>Extract from history]
         Check[checkCompletion.ts<br/>Completion logic]
     end
 
     ElicitAgent[ElicitationAgent] --> Fields
     ElicitAgent --> Extract
-    ElicitAgent --> PrePop
     ElicitAgent --> Check
 
     classDef config fill:#fff4e1,stroke:#333,stroke-width:1px
     classDef tool fill:#e1ffe1,stroke:#333,stroke-width:1px
     class Fields config
-    class Extract,PrePop,Check tool
+    class Extract,Check tool
 ```
 
 ## Universal Front Door Fields
