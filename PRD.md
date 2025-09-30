@@ -41,13 +41,20 @@ The CFD Agent operates in two complementary modes:
 - No functional limitations on conversation topics
 
 #### 3.1.2 Request Routing Mode
-- Agent detects when user mentions a problem (without identifying specific team yet)
-- Gently prompts user: "This could be a potential request that we could route to a team. To better understand your problem, I need to ask you a few questions. Are you okay with that?"
+- Agent detects when user is exploring a problem or expressing intent to submit a request
+- When confidence is high enough that user wants to create a request, automatically transitions to requirements elicitation mode
+- Transition is seamless - agent begins gathering information naturally without explicit permission prompt
 - User maintains full control to:
-  - Agree and proceed with requirements elicitation
-  - Decline and return to general chatbot mode
-  - Change topics
+  - Change topics or exit elicitation flow at any time
+  - Ask side questions during elicitation
+  - Indicate they're no longer interested in submitting a request
 - **Team identification happens after requirements are collected, not before**
+
+**Confidence Signals for Automatic Transition:**
+- User explicitly says "I need to submit a request" or "I want to create a ticket"
+- User describes a problem in depth with multiple details
+- User asks "which team handles X?" or "who do I contact about Y?"
+- Conversational context suggests intent to take action, not just casual discussion
 
 ### 3.2 Requirements Elicitation Flow
 
@@ -118,12 +125,14 @@ graph TD
     UserInput -->|General question| Answer[Answer Question]
     Answer --> ChatMode
 
-    UserInput -->|Problem mentioned| DetectProblem[Detect user has a problem<br/>no team identification yet]
+    UserInput -->|Problem mentioned| AssessIntent[ChatAgent Assesses Intent<br/>confidence level]
 
-    DetectProblem --> Prompt{Offer Help:<br/>Could route to a team.<br/>Can I ask questions?}
+    AssessIntent --> IntentConfidence{High confidence<br/>user wants to<br/>submit request?}
 
-    Prompt -->|User declines| ChatMode
-    Prompt -->|User agrees| InitElicit[Initialize Requirements Elicitation]
+    IntentConfidence -->|Low confidence<br/>casual discussion| ContinueChat[Continue in Chat Mode<br/>answer naturally]
+    ContinueChat --> ChatMode
+
+    IntentConfidence -->|High confidence<br/>request intent detected| InitElicit[Automatically Transition to<br/>Requirements Elicitation]
 
     InitElicit --> LoadFields[Load Universal Front Door Fields]
     LoadFields --> ElicitMode[Requirements Elicitation Mode]
@@ -135,10 +144,9 @@ graph TD
     UserResponse -->|Provides info| ExtractInfo[Extract & Store Field Values]
     UserResponse -->|"I don't know"| MarkUnknown[Mark field as 'I don't know'<br/>or extrapolate if possible]
     UserResponse -->|Side question| AnswerSide[Answer Side Question]
-    UserResponse -->|Changes topic| TopicChange{User wants to<br/>abandon request?}
+    UserResponse -->|Abandons request| TopicChange[User exits elicitation]
 
-    TopicChange -->|Yes| ChatMode
-    TopicChange -->|No, just clarifying| AskQuestions
+    TopicChange --> ChatMode
 
     ExtractInfo --> CheckComplete{All required<br/>fields collected?}
     MarkUnknown --> CheckComplete
@@ -184,17 +192,22 @@ graph TD
 
 ## 5. Key Decision Points in Flow
 
-### 5.1 Problem Detection
-**Decision**: Has user mentioned a problem (not identifying team yet)?
-- **Input**: User conversation indicating they have an issue/request
-- **Output**: Problem detected or general conversation
-- **Action**: Offer to start requirements elicitation or continue chat
+### 5.1 Problem Detection & Intent Assessment
+**Decision**: Has user mentioned a problem AND do they have high confidence intent to submit a request?
+- **Input**: User conversation indicating they have an issue/request, conversational context, language signals
+- **Output**: Intent confidence score (low/medium/high)
+- **Confidence Signals**:
+  - **High**: "I need to submit a request", "create a ticket", detailed problem description with urgency, "who handles X?"
+  - **Low**: Casual mention, venting, hypothetical discussion, exploratory questions
+- **Action**:
+  - High confidence → Automatically transition to elicitation mode
+  - Low confidence → Continue as general chat
 
-### 5.2 Elicitation Entry
-**Decision**: Does user want to proceed with request?
-- **Input**: User's explicit agreement or decline
-- **Output**: Enter elicitation mode or stay in chat mode
-- **Action**: Initialize field collection or continue conversation
+### 5.2 Automatic Elicitation Entry
+**Decision**: ChatAgent signals Supervisor that intent confidence is high enough
+- **Input**: ChatAgent's assessment of user intent
+- **Output**: Mode transition from CHAT to ELICITATION
+- **Action**: SupervisorAgent routes to ElicitationAgent, which begins gathering fields naturally
 
 ### 5.3 Response Interpretation (Cyclical)
 **Decision**: What type of response did user provide?

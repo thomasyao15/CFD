@@ -2,10 +2,10 @@
 
 ## Executive Summary
 
-This document outlines the architecture, design decisions, and incremental development strategy for the CFD Agent. The architecture is based on extensive research of LangChain/LangGraph patterns (2024-2025), Anthropic Claude best practices, and production agentic system designs.
+This document outlines the architecture, design decisions, and incremental development strategy for the CFD Agent. The architecture is based on extensive research of LangChain/LangGraph patterns (2024-2025), OpenAI GPT-5 best practices, and production agentic system designs.
 
 **Core Architecture**: LangGraph multi-agent supervisor pattern with 3 agents
-**Technology Stack**: LangChain, LangGraph, Anthropic Claude, SharePoint API
+**Technology Stack**: LangChain, LangGraph, OpenAI GPT-5, SharePoint API
 **Development Approach**: 6-phase incremental development with comprehensive testing
 **Testing Framework**: LangSmith for tracing, evaluation, and monitoring
 
@@ -165,23 +165,38 @@ This document outlines the architecture, design decisions, and incremental devel
 - User experience feels natural, not robotic
 - Business logic remains predictable and testable
 
-### 5. XML-Structured System Prompts
+### 5. Markdown-Structured System Prompts
 
-**Decision**: Use Anthropic's recommended XML tag structure for all prompts
+**Decision**: Use OpenAI's recommended Markdown and JSON structure for all prompts
 
 **Rationale**:
-- Claude was trained on XML-structured prompts
-- Improves parsing accuracy and reduces misinterpretation
-- Clear separation of instructions, data, examples, and context
-- Supports advanced patterns (chain of thought with `<thinking>`)
+- GPT-5 is optimized for Markdown and natural language formatting
+- Clear separation of instructions, data, examples, and context using Markdown sections
+- Supports advanced patterns (chain of thought with "Let's think step by step")
+- JSON mode for structured outputs when needed
 
 **Example Structure** (see Component Design section for full templates):
-```xml
-<role>Define agent persona and responsibility</role>
-<instructions>Step-by-step task guidance</instructions>
-<context>Relevant state and history</context>
-<thinking>Agent's reasoning process</thinking>
-<answer>Final response to user</answer>
+```markdown
+**Role:**
+Define agent persona and responsibility
+
+**Instructions:**
+1. Step-by-step task guidance
+2. Clear numbered or bulleted lists
+
+**Context:**
+```json
+{
+  "relevant_state": "...",
+  "history": "..."
+}
+```
+
+**Reasoning:**
+Let's think step by step about the best approach...
+
+**Response:**
+Final response to user
 ```
 
 ---
@@ -193,38 +208,35 @@ This document outlines the architecture, design decisions, and incremental devel
 **Responsibility**: Orchestrate conversation flow by routing to appropriate worker agents
 
 **System Prompt Template**:
-```xml
-<role>
+```markdown
+**Role:**
 You are the supervisor of a multi-agent system designed to help users submit requests to internal teams.
 Your job is to analyze the current conversation state and user intent, then delegate to the appropriate specialized agent.
-</role>
 
-<instructions>
-1. Review the <state> to understand the current mode and what has been accomplished.
-2. Analyze the latest <user_message> to determine intent.
+**Instructions:**
+1. Review the current state below to understand the current mode and what has been accomplished.
+2. Analyze the latest user message to determine intent.
 3. Apply routing logic:
    - If mode is CHAT and user mentions a problem → suggest elicitation mode
    - If mode is ELICITATION and all fields collected → proceed to team matching
    - If mode is REVIEW and user confirms → submit to SharePoint
    - If user asks side question during elicitation → route to ChatAgent
 4. Return the next agent to invoke: "ChatAgent" or "ElicitationAgent"
-</instructions>
 
-<state>
+**Current State:**
+```json
 {{SERIALIZED_STATE}}
-</state>
+```
 
-<user_message>
-{{LATEST_MESSAGE}}
-</user_message>
+**Latest User Message:**
+"{{LATEST_MESSAGE}}"
 
-<routing_logic>
+**Routing Logic:**
 - CHAT mode + problem detected → Offer ElicitationAgent
 - ELICITATION mode + fields incomplete → ElicitationAgent
 - ELICITATION mode + fields complete → TeamMatcherTool → REVIEW mode
 - REVIEW mode → ChatAgent (for confirmation dialogue)
 - Side question detected → ChatAgent (preserve elicitation state)
-</routing_logic>
 ```
 
 **Key Features**:
@@ -233,49 +245,82 @@ Your job is to analyze the current conversation state and user intent, then dele
 - Can interrupt elicitation flow to answer questions
 - Transparent routing logic for debugging
 
+**GPT-5 Configuration Example**:
+```python
+response = client.chat.completions.create(
+    model="gpt-5",
+    messages=[{"role": "system", "content": supervisor_prompt}],
+    reasoning_effort="medium",  # Enhanced reasoning for routing decisions
+    tools=[
+        {"type": "function", "function": route_to_chat_agent_schema},
+        {"type": "function", "function": route_to_elicitation_agent_schema}
+    ]
+)
+```
+
 ---
 
 ### ChatAgent
 
-**Responsibility**: Handle general conversation, detect problems, offer routing to elicitation
+**Responsibility**: Handle general conversation, detect problems, assess intent confidence for automatic elicitation
 
 **System Prompt Template**:
-```xml
-<role>
+```markdown
+**Role:**
 You are a friendly, helpful assistant for internal employees.
 You can chat about anything, answer general questions, and help users when they have work-related problems.
-When you detect a user has a problem that might require a team's help, you should offer to route their request.
-</role>
+When you detect a user has HIGH CONFIDENCE intent to submit a request, you automatically begin gathering information.
 
-<instructions>
+**Instructions:**
 1. Engage naturally with the user based on their message.
-2. If the user describes a work problem or request, acknowledge it and offer to help:
-   "This sounds like something a specialized team could help with.
-    To route your request properly, I'd need to ask you a few questions.
-    Are you okay with that?"
-3. If user declines, continue as general chatbot.
-4. If user agrees, signal to supervisor to switch to ELICITATION mode.
-5. Answer side questions during elicitation clearly and concisely.
-</instructions>
+2. Continuously assess user intent for request submission:
 
-<conversation_history>
+   **HIGH CONFIDENCE signals** (auto-transition to elicitation):
+   - Explicit: "I need to submit a request", "create a ticket", "I want to report an issue"
+   - Detailed problem with urgency indicators
+   - Questions like "which team handles X?" or "who do I contact about Y?"
+   - User provides multiple problem details unprompted
+
+   **LOW CONFIDENCE signals** (stay in chat):
+   - Casual mention without detail
+   - Venting or expressing frustration without action intent
+   - Hypothetical or exploratory questions
+   - General discussion about problems
+
+3. If HIGH CONFIDENCE detected:
+   - DO NOT ask permission
+   - Smoothly transition: "Let me help you get this to the right team. Can you tell me more about [relevant field]?"
+   - Signal to supervisor: mode=ELICITATION
+
+4. If LOW CONFIDENCE:
+   - Continue natural conversation
+   - Answer their question
+   - Wait for clearer intent signals
+
+5. When answering side questions during elicitation, be brief and return context to the request.
+
+**Conversation History:**
+```json
 {{MESSAGES}}
-</conversation_history>
+```
 
-<current_mode>
+**Current Mode:**
 {{STATE.mode}}
-</current_mode>
 
-<tone>
+**Intent Assessment:**
+Let's think step by step about the user's intent confidence level: LOW, MEDIUM, or HIGH.
+If HIGH, signal mode transition. If LOW/MEDIUM, continue chat naturally.
+
+**Tone:**
 Friendly, professional, helpful. Brief responses (2-3 sentences typical).
-Do not force requests on users. Let them maintain control.
-</tone>
+Transitions should feel seamless, not robotic or forced.
 ```
 
 **Key Features**:
-- Lightweight problem detection (no team identification yet)
-- Asks permission before switching modes
-- Handles interruptions during elicitation
+- Intent confidence assessment (high/medium/low)
+- Automatic transition to elicitation (no permission prompt)
+- Handles ambiguous cases by staying in chat mode
+- Smooth conversational transitions
 - Maintains conversational tone
 
 ---
@@ -285,63 +330,70 @@ Do not force requests on users. Let them maintain control.
 **Responsibility**: Collect all universal front door fields through conversational questioning
 
 **System Prompt Template**:
-```xml
-<role>
+```markdown
+**Role:**
 You are a specialized assistant responsible for gathering specific information for a service request.
 Your goal is to fill all required fields in the schema below through natural conversation.
 You must be polite, clear, and efficient. Only ask for information that is still missing.
-</role>
 
-<instructions>
-1. Review <conversation_history> and <collected_fields> to understand context.
-2. Identify the next missing field from <required_fields_schema>.
+**Instructions:**
+1. Review the conversation history and collected fields below to understand context.
+2. Identify the next missing field from the required fields schema.
 3. Ask a clear, specific question to obtain that information.
 4. If the user provides multiple pieces of information at once, extract and acknowledge all of them.
 5. If the user says "I don't know", mark that field as unknown and move to the next field.
 6. If the user asks a side question, answer briefly and return to elicitation.
 7. Once all fields are collected, signal completion to supervisor.
-</instructions>
 
-<conversation_history>
+**Conversation History:**
+```json
 {{MESSAGES}}
-</conversation_history>
+```
 
-<collected_fields>
+**Collected Fields:**
+```json
 {{STATE.collected_fields}}
-</collected_fields>
+```
 
-<required_fields_schema>
-<field name="request_summary" type="string" required="true">
-  Brief description of the request (1-2 sentences)
-</field>
-<field name="business_impact" type="string" required="true">
-  How this affects business operations or goals
-</field>
-<field name="urgency" type="enum" values="['low','medium','high','critical']" required="true">
-  Timeline sensitivity
-</field>
-<field name="affected_users" type="string" required="false">
-  Who is impacted by this issue
-</field>
-<!-- Additional universal front door fields -->
-</required_fields_schema>
+**Required Fields Schema:**
+```json
+{
+  "request_summary": {
+    "type": "string",
+    "required": true,
+    "description": "Brief description of the request (1-2 sentences)"
+  },
+  "business_impact": {
+    "type": "string",
+    "required": true,
+    "description": "How this affects business operations or goals"
+  },
+  "urgency": {
+    "type": "enum",
+    "values": ["low", "medium", "high", "critical"],
+    "required": true,
+    "description": "Timeline sensitivity"
+  },
+  "affected_users": {
+    "type": "string",
+    "required": false,
+    "description": "Who is impacted by this issue"
+  }
+}
+```
 
-<extraction_guidelines>
+**Extraction Guidelines:**
 - Extract data into JSON format matching the schema
 - Use tool calls to update collected_fields in state
 - Be flexible with question ordering based on conversation flow
 - Infer field values when possible from context
 - Confirm extracted data with user if ambiguous
-</extraction_guidelines>
 
-<thinking>
-Let me check what fields are still missing...
-[Agent reasoning about next question]
-</thinking>
+**Reasoning:**
+Let's think step by step about what fields are still missing and what question to ask next...
 
-<answer>
+**Response:**
 [Clear, specific question to user]
-</answer>
 ```
 
 **Key Features**:
@@ -349,11 +401,25 @@ Let me check what fields are still missing...
 - Flexible question ordering
 - Multi-field extraction from single utterance
 - Handles "I don't know" responses
-- Chain of thought reasoning (`<thinking>` tags)
+- Chain of thought reasoning (using "Let's think step by step" pattern)
 
 **Tool Access**:
 - `update_field(field_name: str, value: Any)`: Updates state with extracted information
 - `mark_field_unknown(field_name: str)`: Marks field as "user doesn't know"
+
+**GPT-5 Configuration Example**:
+```python
+response = client.chat.completions.create(
+    model="gpt-5",
+    messages=[{"role": "system", "content": elicitation_prompt}],
+    reasoning_effort="low",  # Simple extraction tasks don't need high reasoning
+    tools=[
+        {"type": "function", "function": update_field_schema},
+        {"type": "function", "function": mark_field_unknown_schema}
+    ],
+    tool_choice="auto"  # Let model decide when to call tools
+)
+```
 
 ---
 
@@ -410,16 +476,25 @@ else:
 3. **LLM Classification** (fallback for ambiguous cases):
 ```python
 # Use structured output for reliability
-response = client.messages.create(
-    model="claude-3-5-sonnet",
+response = client.chat.completions.create(
+    model="gpt-5",
     messages=[{
         "role": "user",
         "content": f"""
-        <request_data>{collected_fields}</request_data>
-        <teams>{team_database}</teams>
-        Which team should handle this? Respond with team_id only.
+        **Request Data:**
+        ```json
+        {collected_fields}
+        ```
+
+        **Available Teams:**
+        ```json
+        {team_database}
+        ```
+
+        Which team should handle this request? Respond with team_id only.
         """
-    }]
+    }],
+    response_format={"type": "json_object"}
 )
 ```
 
@@ -651,8 +726,8 @@ app = workflow.compile()
 - Add SupervisorAgent
 - Add ElicitationAgent (stub that just echoes)
 - Implement routing logic: CHAT ↔ ELICITATION
-- ChatAgent detects problems and offers to start elicitation
-- State includes `mode` field
+- ChatAgent detects problems, assesses intent confidence, and signals automatic transition to elicitation when confidence is high
+- State includes `mode` field and `intent_confidence` signal
 
 **Implementation**:
 ```python
@@ -689,18 +764,22 @@ app = workflow.compile()
 ```
 
 **Testing**:
-- **Routing Accuracy Dataset**: 50+ utterances labeled with expected mode
-  - "Hi there" → CHAT
-  - "I need help with a problem" → offer ELICITATION
-  - "Yes, let's start" → ELICITATION
-- LangSmith evaluator: classification accuracy on routing decisions
-- Manual testing: mode transitions feel natural
+- **Intent Confidence Dataset**: 50+ utterances labeled with expected confidence + mode
+  - "Hi there" → CHAT (no transition)
+  - "My app is slow" → CHAT initially, then assess
+  - "I need to submit a request about login issues" → HIGH confidence → ELICITATION
+  - "Which team handles performance problems?" → HIGH confidence → ELICITATION
+  - "Just venting - everything is slow today" → LOW confidence → CHAT
+- LangSmith evaluator: intent classification accuracy and mode transition appropriateness
+- Manual testing: transitions feel seamless and natural (not forced)
+- **GPT-5 Optimization**: Experiment with `reasoning_effort` settings (low/medium/high) to balance accuracy vs. latency for supervisor routing decisions
 
 **Success Criteria**:
 - ✅ Supervisor correctly routes to ChatAgent vs ElicitationAgent
-- ✅ ChatAgent detects problems and offers elicitation
-- ✅ User can accept or decline elicitation
-- ✅ Routing accuracy > 90% on test dataset
+- ✅ ChatAgent accurately assesses intent confidence (high/low)
+- ✅ Automatic transitions happen smoothly when appropriate
+- ✅ False positive rate < 10% (doesn't force elicitation when user just chatting)
+- ✅ Intent accuracy > 85% on test dataset
 
 **Estimated Duration**: 3-4 days
 
@@ -1076,6 +1155,26 @@ print(f"Routing accuracy: {results['accuracy']:.2%}")
 
 ## Anti-Patterns to Avoid
 
+### OpenAI GPT-5 Best Practices
+
+**✅ Do:**
+- Use Markdown formatting with clear headers (`**Role:**`, `**Instructions:**`)
+- Structure data in JSON code blocks for clarity
+- Use "Let's think step by step" for chain of thought reasoning
+- Enable `response_format={"type": "json_object"}` when expecting structured outputs
+- Set appropriate `reasoning_effort` levels based on task complexity
+- Use numbered lists for sequential instructions
+- Provide examples in JSON format when relevant
+
+**❌ Don't:**
+- Use XML tags like `<role>`, `<instructions>`, `<thinking>` (not optimized for GPT-5)
+- Mix formatting styles within a single prompt
+- Expect XML parsing reliability
+- Forget to specify JSON mode when needed
+- Use overly high reasoning effort for simple tasks (wastes tokens/time)
+
+---
+
 ### 1. Leaky Agent Responsibilities
 
 **❌ Bad**:
@@ -1241,13 +1340,21 @@ elicitation_prompt = """Collect fields. [300 words]"""
 
 ### LLM
 
-- **Primary**: Anthropic Claude 3.5 Sonnet (or Opus 4 for complex reasoning)
+- **Primary**: OpenAI GPT-5
 - **Rationale**:
-  - Extended thinking for supervisor decisions
-  - Best-in-class tool use
-  - 200K context window
-  - XML prompt training
-  - Prompt caching for efficiency
+  - Advanced reasoning capabilities with `reasoning_effort` parameter
+  - Best-in-class tool use and function calling
+  - 200K+ context window
+  - Optimized for Markdown and JSON formatting
+  - Native JSON mode for structured outputs
+  - Superior performance on complex multi-step tasks
+
+**GPT-5 Specific Features**:
+- **Reasoning Effort**: Set `reasoning_effort` parameter ("low", "medium", "high") for deeper thinking on complex decisions
+- **JSON Mode**: Use `response_format={"type": "json_object"}` for structured outputs
+- **Function Calling**: Use `tools` parameter with `allowed_tools` for granular control
+- **Chain of Thought**: Use "Let's think step by step" for explicit reasoning
+- **Structured Prompts**: Prefer Markdown headers, bullet lists, and JSON code blocks over XML
 
 ### Integration
 
@@ -1261,6 +1368,65 @@ elicitation_prompt = """Collect fields. [300 words]"""
 - **Package Manager**: Poetry or pip + requirements.txt
 - **Linting**: Ruff + mypy for type checking
 - **Testing**: pytest + LangSmith evaluators
+- **OpenAI SDK**: `openai>=1.0.0` for GPT-5 API access
+
+**OpenAI Client Initialization**:
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key=os.environ.get("OPENAI_API_KEY")
+)
+
+# Example usage with GPT-5
+response = client.chat.completions.create(
+    model="gpt-5",
+    messages=[
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_message}
+    ],
+    reasoning_effort="medium",  # Adjust based on task complexity
+    temperature=0.7,
+    max_tokens=2000
+)
+```
+
+### GPT-5 Prompt Engineering Guidelines
+
+**Prompt Structure**:
+```markdown
+**Role:** [Single sentence defining agent persona]
+
+**Instructions:**
+1. [Numbered step-by-step instructions]
+2. [Clear, actionable items]
+
+**Context:**
+```json
+{
+  "state": "...",
+  "data": "..."
+}
+```
+
+**Reasoning:**
+Let's think step by step...
+
+**Response:**
+[Final output]
+```
+
+**Key Principles**:
+1. **Clear Delimiters**: Use Markdown headers (`**Role:**`) not XML tags
+2. **JSON for Data**: Embed state/config as JSON code blocks
+3. **Explicit Reasoning**: Add "Let's think step by step" for complex decisions
+4. **Structured Outputs**: Use `response_format={"type": "json_object"}` when needed
+5. **Reasoning Effort**:
+   - `"low"` for simple extraction/classification
+   - `"medium"` for routing and intent assessment (default)
+   - `"high"` for complex multi-step reasoning
+6. **Function Calling**: Define clear tool schemas with detailed descriptions
+7. **Context Management**: Keep prompts under 4000 tokens when possible for faster response times
 
 ### Deployment (Future)
 
@@ -1273,82 +1439,96 @@ elicitation_prompt = """Collect fields. [300 words]"""
 
 ### Universal Front Door Fields Configuration
 
-**Location**: `config/universal_fields.yaml`
+**Location**: `config/universal_fields.yaml` or `config/universal_fields.json`
 
-```yaml
-universal_front_door_fields:
-  - name: request_summary
-    type: string
-    required: true
-    description: "Brief 1-2 sentence description of the request"
-    prompt_hint: "What are you trying to accomplish?"
-
-  - name: business_impact
-    type: string
-    required: true
-    description: "How this affects business operations"
-    prompt_hint: "How does this impact your work or the business?"
-
-  - name: urgency
-    type: enum
-    required: true
-    values: ["low", "medium", "high", "critical"]
-    description: "Timeline sensitivity"
-    prompt_hint: "How urgent is this? (low/medium/high/critical)"
-
-  - name: affected_users
-    type: string
-    required: false
-    description: "Who is impacted"
-    prompt_hint: "Who else is affected by this?"
-
-  # ... additional fields
+```json
+{
+  "universal_front_door_fields": [
+    {
+      "name": "request_summary",
+      "type": "string",
+      "required": true,
+      "description": "Brief 1-2 sentence description of the request",
+      "prompt_hint": "What are you trying to accomplish?"
+    },
+    {
+      "name": "business_impact",
+      "type": "string",
+      "required": true,
+      "description": "How this affects business operations",
+      "prompt_hint": "How does this impact your work or the business?"
+    },
+    {
+      "name": "urgency",
+      "type": "enum",
+      "required": true,
+      "values": ["low", "medium", "high", "critical"],
+      "description": "Timeline sensitivity",
+      "prompt_hint": "How urgent is this? (low/medium/high/critical)"
+    },
+    {
+      "name": "affected_users",
+      "type": "string",
+      "required": false,
+      "description": "Who is impacted",
+      "prompt_hint": "Who else is affected by this?"
+    }
+  ]
+}
 ```
+
+**Note**: JSON format is preferred for GPT-5 integration as it can be directly embedded in prompts without conversion.
 
 ### Team Directory Configuration
 
-**Location**: `config/teams.yaml`
+**Location**: `config/teams.yaml` or `config/teams.json`
 
-```yaml
-teams:
-  - id: identity_team
-    name: "Identity & Authentication Team"
-    description: "Handles login, SSO, MFA, and authentication issues"
-    keywords: ["login", "authentication", "password", "SSO", "MFA"]
-    sharepoint_site_url: "https://contoso.sharepoint.com/sites/IdentityTeam"
-    sharepoint_list_title: "Support Requests"
-
-  - id: performance_team
-    name: "Performance Engineering Team"
-    description: "Handles app performance, latency, and optimization"
-    keywords: ["slow", "performance", "latency", "timeout"]
-    sharepoint_site_url: "https://contoso.sharepoint.com/sites/PerfTeam"
-    sharepoint_list_title: "Performance Tickets"
-
-  # ... 100+ teams
+```json
+{
+  "teams": [
+    {
+      "id": "identity_team",
+      "name": "Identity & Authentication Team",
+      "description": "Handles login, SSO, MFA, and authentication issues",
+      "keywords": ["login", "authentication", "password", "SSO", "MFA"],
+      "sharepoint_site_url": "https://contoso.sharepoint.com/sites/IdentityTeam",
+      "sharepoint_list_title": "Support Requests"
+    },
+    {
+      "id": "performance_team",
+      "name": "Performance Engineering Team",
+      "description": "Handles app performance, latency, and optimization",
+      "keywords": ["slow", "performance", "latency", "timeout"],
+      "sharepoint_site_url": "https://contoso.sharepoint.com/sites/PerfTeam",
+      "sharepoint_list_title": "Performance Tickets"
+    }
+  ]
+}
 ```
+
+**Note**: JSON format allows direct embedding in GPT-5 prompts and easier programmatic access.
 
 ### Prompt Templates
 
 **Location**: `prompts/`
 
-- `supervisor.xml`: SupervisorAgent prompt
-- `chat_agent.xml`: ChatAgent prompt
-- `elicitation_agent.xml`: ElicitationAgent prompt
+- `supervisor.md`: SupervisorAgent prompt
+- `chat_agent.md`: ChatAgent prompt
+- `elicitation_agent.md`: ElicitationAgent prompt
 
 **Dynamic Loading**:
 ```python
 from pathlib import Path
 
 def load_prompt(agent_name: str, state: Dict) -> str:
-    template_path = Path(__file__).parent / "prompts" / f"{agent_name}.xml"
+    template_path = Path(__file__).parent / "prompts" / f"{agent_name}.md"
     template = template_path.read_text()
 
     # Inject state into template
     return template.format(
         STATE=json.dumps(state, indent=2),
-        MESSAGES=format_messages(state["messages"]),
-        COLLECTED_FIELDS=format_fields(state.get("collected_fields", {}))
+        MESSAGES=json.dumps(state["messages"], indent=2),
+        COLLECTED_FIELDS=json.dumps(state.get("collected_fields", {}), indent=2)
     )
 ```
 
@@ -1388,21 +1568,19 @@ def load_prompt(agent_name: str, state: Dict) -> str:
 
 ## Appendix: Example Conversation Flow
 
+**Note**: This example demonstrates the natural conversation flow. Behind the scenes, all agent prompts use Markdown formatting and JSON data structures optimized for GPT-5.
+
 ```
 User: Hi there!
 Agent (ChatAgent): Hello! How can I help you today?
 
 User: I'm having trouble with our app loading slowly
-Agent (ChatAgent): I understand that can be frustrating. This sounds like
-                   something a specialized team could help with. To route
-                   your request properly, I'd need to ask you a few
-                   questions. Are you okay with that?
+Agent (ChatAgent): [Assesses intent: detailed problem mentioned - HIGH confidence]
+                   I understand that can be frustrating. Let me help you get
+                   this to the right team. Can you tell me more about what's
+                   happening? How long has it been taking to load?
 
-User: Sure
-Agent (SupervisorAgent): [switches to ELICITATION mode]
-
-Agent (ElicitationAgent): Great! Let's start with a brief summary.
-                          Can you describe the issue in 1-2 sentences?
+Agent (SupervisorAgent): [ChatAgent signals mode=ELICITATION, routes to ElicitationAgent]
 
 User: The main dashboard is taking 30+ seconds to load for our team
 Agent: Got it. How is this impacting your business operations?
