@@ -1386,7 +1386,6 @@ response = client.chat.completions.create(
         {"role": "user", "content": user_message}
     ],
     reasoning_effort="medium",  # Adjust based on task complexity
-    temperature=0.7,
     max_tokens=2000
 )
 ```
