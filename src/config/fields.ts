@@ -5,6 +5,7 @@
 
 export type FieldType = "string" | "enum" | "number";
 export type UrgencyLevel = "low" | "medium" | "high" | "critical";
+export type RequestType = "incident" | "service_request" | "question" | "access_request" | "other";
 
 /**
  * Definition of a single field in the universal front door
@@ -64,6 +65,32 @@ export const UNIVERSAL_FIELDS: FieldDefinition[] = [
     description: "Who else is impacted by this issue",
     prompt: "Who else (individuals or teams) is affected by this issue?",
   },
+  {
+    name: "request_type",
+    type: "enum",
+    required: true,
+    description: "Type of request being submitted",
+    prompt: "What type of request is this? (incident, service_request, question, access_request, or other)",
+    enumValues: ["incident", "service_request", "question", "access_request", "other"],
+    validation: (value: string) =>
+      ["incident", "service_request", "question", "access_request", "other"].includes(value.toLowerCase()),
+  },
+  {
+    name: "department",
+    type: "string",
+    required: true,
+    description: "Department or team making the request",
+    prompt: "What department or team are you from?",
+    validation: (value: string) => value && value.length >= 2,
+  },
+  {
+    name: "desired_resolution",
+    type: "string",
+    required: true,
+    description: "Expected outcome or resolution the user is seeking",
+    prompt: "What would a successful resolution look like for this request?",
+    validation: (value: string) => value && value.length >= 10,
+  },
 ];
 
 /**
@@ -74,6 +101,9 @@ export interface CollectedFields {
   business_impact?: string;
   urgency?: UrgencyLevel;
   affected_users?: string;
+  request_type?: RequestType;
+  department?: string;
+  desired_resolution?: string;
 }
 
 /**

@@ -17,6 +17,9 @@ export const FieldExtractionSchema = z.object({
       business_impact: z.string().nullable(),
       urgency: z.enum(["low", "medium", "high", "critical"]).nullable(),
       affected_users: z.string().nullable(),
+      request_type: z.enum(["incident", "service_request", "question", "access_request", "other"]).nullable(),
+      department: z.string().nullable(),
+      desired_resolution: z.string().nullable(),
     })
     .describe(
       "Field values extracted from user's message. Set to null if not mentioned. Only include non-null values if you're confident (>80% confidence)."
@@ -30,6 +33,9 @@ export const FieldExtractionSchema = z.object({
         "business_impact",
         "urgency",
         "affected_users",
+        "request_type",
+        "department",
+        "desired_resolution",
       ])
     )
     .describe(
