@@ -9,6 +9,8 @@ import { AgentState, AgentStateType } from "./state";
 import { supervisorAgent } from "./agents/supervisor";
 import { chatAgent } from "./agents/chatAgent";
 import { elicitationAgent } from "./agents/elicitationAgent";
+import { teamMatchingAgent } from "./agents/teamMatching";
+import { routeAfterElicitation } from "./agents/checkCompletion";
 
 // Debug: Check if LangSmith env vars are loaded
 console.log("LANGCHAIN_TRACING_V2:", process.env.LANGCHAIN_TRACING_V2);
@@ -16,8 +18,8 @@ console.log("LANGCHAIN_API_KEY:", process.env.LANGCHAIN_API_KEY ? "SET" : "NOT S
 console.log("LANGCHAIN_PROJECT:", process.env.LANGCHAIN_PROJECT);
 
 // ============================================================================
-// PHASE 2: SUPERVISOR + MODE ROUTING
-// Multi-agent system with supervisor routing between chat and elicitation
+// PHASE 3: REQUIREMENTS ELICITATION LOOP
+// Full implementation with field extraction, pre-population, and completion checking
 // ============================================================================
 
 export const cfdAgent = new AgentApplicationBuilder().build();
@@ -54,8 +56,7 @@ function routeToAgent(state: AgentStateType): string {
 
 // ============================================================================
 // LANGGRAPH CONSTRUCTION
-// Supervisor pattern: supervisor → (chatAgent | elicitationAgent) → END
-// One user message = one agent response (turn-based)
+// supervisor → (chatAgent | elicitationAgent) → [completion check] → END or teamMatching
 // ============================================================================
 
 const checkpointer = new MemorySaver();
@@ -64,6 +65,7 @@ const graphBuilder = new StateGraph(AgentState)
   .addNode("supervisor", supervisorAgent)
   .addNode("chatAgent", chatAgent)
   .addNode("elicitationAgent", elicitationAgent)
+  .addNode("teamMatching", teamMatchingAgent)
   // Start with supervisor
   .addEdge(START, "supervisor")
   // Supervisor routes conditionally to either agent
@@ -71,9 +73,15 @@ const graphBuilder = new StateGraph(AgentState)
     chatAgent: "chatAgent",
     elicitationAgent: "elicitationAgent",
   })
-  // Both agents go directly to END (return response to user)
+  // ChatAgent returns to user
   .addEdge("chatAgent", END)
-  .addEdge("elicitationAgent", END);
+  // ElicitationAgent checks completion before ending
+  .addConditionalEdges("elicitationAgent", routeAfterElicitation, {
+    elicitationAgent: END, // Still missing fields, return to user
+    teamMatching: "teamMatching", // Complete, move to team matching
+  })
+  // Team matching ends the flow (Phase 4 stub)
+  .addEdge("teamMatching", END);
 
 const graph = graphBuilder.compile({ checkpointer });
 
