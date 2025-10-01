@@ -42,11 +42,18 @@ export async function supervisorAgent(
   ) {
     nextAgent = "elicitationAgent";
     newMode = "ELICITATION";
+  } else if (
+    decision.includes("reviewagent") ||
+    decision === "reviewagent"
+  ) {
+    nextAgent = "reviewAgent";
+    // Keep REVIEW mode - ReviewAgent will change it based on action
+    newMode = "REVIEW";
   } else if (decision.includes("chatagent") || decision === "chatagent") {
     nextAgent = "chatAgent";
     // Keep current mode unchanged
-    // This allows side questions during elicitation without losing context
-    // Mode only changes when explicitly routing to elicitationAgent
+    // This allows side questions during elicitation/review without losing context
+    // Mode only changes when explicitly routing to elicitationAgent or reviewAgent
     newMode = state.mode;
 
     // TODO (Phase 3+): Add exit logic for ELICITATION mode

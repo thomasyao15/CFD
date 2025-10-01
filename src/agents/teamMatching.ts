@@ -3,11 +3,12 @@ import { SystemMessage, AIMessage } from "@langchain/core/messages";
 import { ChatOpenAI } from "@langchain/openai";
 import { AgentStateType } from "../state";
 import { formatCollectedFieldsSummary } from "../tools/fieldExtraction";
-import { getTeamById, getAllTeamIds } from "../config/teams";
+import { getTeamById, getAllTeamIds, TeamDefinition } from "../config/teams";
 import {
   getTeamMatchingPrompt,
   getNoMatchFoundPrompt,
 } from "../prompts/teamMatching";
+import { CollectedFields } from "../config/fields";
 
 /**
  * Zod schema for team matching structured output
@@ -35,6 +36,33 @@ const llm = new ChatOpenAI({
   model: "gpt-5-nano",
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+/**
+ * Format review message for user (no LLM call needed)
+ * Displays collected information and explains the 4 possible actions
+ */
+function formatReviewMessage(
+  fields: Partial<CollectedFields>,
+  team: TeamDefinition,
+  fieldsMarkedUnknown: string[]
+): string {
+  const summary = formatCollectedFieldsSummary(fields, fieldsMarkedUnknown);
+
+  return `Perfect! I've gathered all the information and identified that the **${team.name}** is the best team to help with your request.
+
+**Here's what I have:**
+${summary}
+
+**Assigned Team:** ${team.name}
+
+**What would you like to do?**
+- **Confirm** - Submit this request to the team
+- **Modify** - Make changes to any of the information
+- **Abandon** - Cancel this request
+- **Ask questions** - I can clarify anything about your request
+
+Please let me know how you'd like to proceed!`;
+}
 
 /**
  * Team Matching Agent (Phase 4)
@@ -76,27 +104,28 @@ export async function teamMatchingAgent(
 
     // Step 2: Handle result based on whether team was found
     if (result.team_id !== null) {
-      // Success: Team found
+      // Success: Team found - construct review message and transition to REVIEW mode
       const team = getTeamById(result.team_id);
       if (!team) {
         throw new Error(`Team not found: ${result.team_id}`);
       }
 
       console.log(`[TeamMatching] ✅ Matched to: ${team.name}`);
+      console.log(`[TeamMatching] Transitioning to REVIEW mode`);
       console.log("=".repeat(60) + "\n");
 
-      // TODO: Phase 5 - This will transition to REVIEW mode
-      // For now, we just confirm the match
+      // Format review message (no LLM call needed)
+      const reviewMessage = formatReviewMessage(
+        state.collectedFields,
+        team,
+        state.fieldsMarkedUnknown
+      );
+
       return {
-        messages: [
-          new AIMessage(
-            `Perfect! Based on what you've shared, I've identified that the **${team.name}** is the best team to help with your request.\n\n` +
-              `In Phase 5, you'll be able to review all the details before I submit this request to their queue. For now, this completes the Phase 4 demonstration!`
-          ),
-        ],
+        messages: [new AIMessage(reviewMessage)],
         identifiedTeam: team.id,
         identifiedTeamName: team.name,
-        mode: "REVIEW" as const, // Phase 5 stub
+        mode: "REVIEW" as const, // User will see review message and can choose action
       };
     } else {
       // No match found: Use separate LLM call with dedicated prompt

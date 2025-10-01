@@ -41,19 +41,20 @@ export const AgentState = Annotation.Root({
 
   /**
    * Collected field values during elicitation
-   * Merges updates to allow incremental field collection
+   * Uses replacement semantics - agents must merge manually for incremental updates
    */
   collectedFields: Annotation<Partial<CollectedFields>>({
-    reducer: (x, y) => ({ ...x, ...y }),
+    reducer: (_, y) => y,
     default: () => ({}),
   }),
 
   /**
    * Fields that user explicitly said they don't know
    * Tracks which fields to stop asking about
+   * Uses replacement semantics - agents must merge manually for incremental updates
    */
   fieldsMarkedUnknown: Annotation<string[]>({
-    reducer: (x, y) => Array.from(new Set([...x, ...y])),
+    reducer: (_, y) => y,
     default: () => [],
   }),
 
@@ -69,6 +70,22 @@ export const AgentState = Annotation.Root({
    * Display name of identified team
    */
   identifiedTeamName: Annotation<string | null>({
+    reducer: (_, y) => y ?? null,
+    default: () => null,
+  }),
+
+  /**
+   * SharePoint item URL after successful submission
+   */
+  sharepoint_item_url: Annotation<string | null>({
+    reducer: (_, y) => y ?? null,
+    default: () => null,
+  }),
+
+  /**
+   * Error message if submission failed
+   */
+  submission_error: Annotation<string | null>({
     reducer: (_, y) => y ?? null,
     default: () => null,
   }),

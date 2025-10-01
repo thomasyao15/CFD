@@ -74,10 +74,13 @@ export async function elicitationAgent(
     );
 
     // Return the followup response from structured output (no second LLM call needed)
+    // NOTE: Must manually merge because state reducers now use replacement semantics
     return {
       messages: [new AIMessage(extraction.followup_response)],
-      collectedFields: nonNullUpdates,
-      fieldsMarkedUnknown: extraction.marked_unknown,
+      collectedFields: { ...state.collectedFields, ...nonNullUpdates },
+      fieldsMarkedUnknown: Array.from(
+        new Set([...state.fieldsMarkedUnknown, ...extraction.marked_unknown])
+      ),
     };
   } catch (error) {
     console.error("[ElicitationAgent] Error during extraction:", error);

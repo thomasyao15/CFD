@@ -1,6 +1,6 @@
 # CFD Agent - Current Implementation Progress
 
-## Phase 1-4 Conversational Flow Diagram (Implemented Architecture)
+## Phase 1-5 Conversational Flow Diagram (Implemented Architecture)
 
 ```mermaid
 graph TD
@@ -21,6 +21,28 @@ graph TD
     ChatAgent --> ChatLLM[LLM Call: Generate Response]
     ChatLLM --> ChatResponse[Return Response Message]
     ChatResponse --> EndTurn1[END - Return to User]
+
+    %% Review Agent Path
+    RouteDecision -->|next = reviewAgent| ReviewAgent[ReviewAgent<br/>Phase 5 - Review & Submit]
+    ReviewAgent --> ReviewLLM[LLM Call: Classify User Action]
+    ReviewLLM --> ReviewAction[Structured Output:<br/>action_type, reasoning,<br/>response_to_user]
+    ReviewAction --> ActionType{Action Type?}
+
+    ActionType -->|confirm| SharePointSubmit[Call submitToSharePoint]
+    SharePointSubmit --> SubmitSuccess{Success?}
+    SubmitSuccess -->|Yes| SubmitOK[Return success + URL<br/>mode = CHAT]
+    SubmitSuccess -->|No| SubmitError[Return error message<br/>mode = REVIEW stay]
+    SubmitOK --> EndTurn5[END - Return to User]
+    SubmitError --> EndTurn6[END - Return to User]
+
+    ActionType -->|modify| ModifyState[Set mode = ELICITATION]
+    ModifyState --> EndTurn7[END - Return to User<br/>Supervisor will route to ElicitationAgent]
+
+    ActionType -->|abandon| ClearState[Clear collectedFields,<br/>identifiedTeam, etc.<br/>mode = CHAT]
+    ClearState --> EndTurn8[END - Return to User]
+
+    ActionType -->|clarify| AnswerQuestion[Answer user's question<br/>mode = REVIEW stay]
+    AnswerQuestion --> EndTurn9[END - Return to User]
 
     %% Simplified Elicitation Agent Path - Single LLM Call
     RouteDecision -->|next = elicitationAgent| ElicitAgent[ElicitationAgent]
@@ -47,8 +69,9 @@ graph TD
     TeamMatchOutput --> TeamFound{Team Found?}
 
     %% Team Match Success Path
-    TeamFound -->|Yes - team_id exists| UpdateTeamInfo[Update State:<br/>identifiedTeam = team_id<br/>identifiedTeamName = team.name<br/>mode = REVIEW]
-    UpdateTeamInfo --> TeamSuccessMsg[Return Success Message:<br/>Identified team + Phase 5 note]
+    TeamFound -->|Yes - team_id exists| FormatReview[formatReviewMessage:<br/>NO LLM CALL<br/>Construct review display]
+    FormatReview --> UpdateTeamInfo[Update State:<br/>identifiedTeam = team_id<br/>identifiedTeamName = team.name<br/>mode = REVIEW]
+    UpdateTeamInfo --> TeamSuccessMsg[Return Review Message:<br/>Shows collected fields + team<br/>Explains 4 actions]
     TeamSuccessMsg --> EndTurn3[END - Return to User]
 
     %% No Team Match Path
@@ -62,6 +85,11 @@ graph TD
     EndTurn2 --> WaitUser
     EndTurn3 --> WaitUser
     EndTurn4 --> WaitUser
+    EndTurn5 --> WaitUser
+    EndTurn6 --> WaitUser
+    EndTurn7 --> WaitUser
+    EndTurn8 --> WaitUser
+    EndTurn9 --> WaitUser
     WaitUser --> UserInput
 
     %% Styling
@@ -71,14 +99,14 @@ graph TD
     classDef decisionNode fill:#ffe1ff,stroke:#333,stroke-width:2px
     classDef processNode fill:#ffe1e1,stroke:#333,stroke-width:2px
 
-    class Supervisor,ChatAgent,ElicitAgent,TeamMatch agentNode
-    class SupervisorLLM,ChatLLM,SingleLLM llmNode
-    class UpdateMode,UpdateState,UpdateTeamMode stateNode
-    class RouteDecision,AddFocus,CompletionCheck decisionNode
-    class BuildPrompt,AddHistory,FocusMsg,StructuredOutput,FilterNull,ReturnFollowup processNode
+    class Supervisor,ChatAgent,ElicitAgent,TeamMatch,ReviewAgent agentNode
+    class SupervisorLLM,ChatLLM,SingleLLM,ReviewLLM llmNode
+    class UpdateMode,UpdateState,UpdateTeamInfo,ModifyState,ClearState stateNode
+    class RouteDecision,AddFocus,CompletionCheck,TeamFound,ActionType,SubmitSuccess decisionNode
+    class BuildPrompt,AddHistory,FocusMsg,StructuredOutput,FilterNull,ReturnFollowup,FormatReview processNode
 ```
 
-## State Schema (Phase 1-4)
+## State Schema (Phase 1-5)
 
 ```mermaid
 graph LR
@@ -89,9 +117,11 @@ graph LR
     State --> FieldsUnknown[fieldsMarkedUnknown: string<br/>Fields user doesn't know]
     State --> IdentifiedTeam[identifiedTeam: string | null<br/>Team ID after matching]
     State --> IdentifiedTeamName[identifiedTeamName: string | null<br/>Team display name]
+    State --> SharePointURL[sharepoint_item_url: string | null<br/>URL after successful submission]
+    State --> SubmissionError[submission_error: string | null<br/>Error if submission fails]
 
     classDef stateField fill:#e1ffe1,stroke:#333,stroke-width:1px
-    class Messages,Mode,Next,CollectedFields,FieldsUnknown,IdentifiedTeam,IdentifiedTeamName stateField
+    class Messages,Mode,Next,CollectedFields,FieldsUnknown,IdentifiedTeam,IdentifiedTeamName,SharePointURL,SubmissionError stateField
 ```
 
 ## Agent Responsibilities
@@ -126,17 +156,33 @@ graph TD
         T2[LLM Call: Match to best team]
         T3[Structured output: team_id, confidence, reasoning]
         T4{Team found?}
-        T5[Success: Update state with team info, mode=REVIEW]
-        T6[No match: Separate LLM call with dedicated prompt]
-        T7[Generate playback + ask for more detail]
-        T8[Reset mode to CHAT]
+        T5[Success: Format review message NO LLM]
+        T6[Update state with team info, mode=REVIEW]
+        T7[No match: Separate LLM call with dedicated prompt]
+        T8[Generate playback + ask for more detail]
+        T9[Reset mode to CHAT]
         T1 --> T2 --> T3 --> T4
-        T4 -->|Yes| T5
-        T4 -->|No| T6 --> T7 --> T8
+        T4 -->|Yes| T5 --> T6
+        T4 -->|No| T7 --> T8 --> T9
+    end
+
+    subgraph ReviewAgent
+        R1[LLM Call: Classify user action]
+        R2[Structured output: action_type, reasoning, response]
+        R3{Action type?}
+        R4[Confirm: Submit to SharePoint]
+        R5[Modify: Set mode=ELICITATION]
+        R6[Abandon: Clear state, mode=CHAT]
+        R7[Clarify: Answer question, stay in REVIEW]
+        R1 --> R2 --> R3
+        R3 -->|confirm| R4
+        R3 -->|modify| R5
+        R3 -->|abandon| R6
+        R3 -->|clarify| R7
     end
 
     classDef agent fill:#e1f5ff,stroke:#333,stroke-width:2px
-    class SupervisorAgent,ChatAgent,ElicitationAgent,TeamMatchingAgent agent
+    class SupervisorAgent,ChatAgent,ElicitationAgent,TeamMatchingAgent,ReviewAgent agent
 ```
 
 ## Field Collection Process (Simplified)
@@ -182,14 +228,16 @@ sequenceDiagram
 
 | Decision Point | Logic | Outcomes |
 |---------------|-------|----------|
-| **Supervisor Routing** | Analyze user intent + current mode | → chatAgent<br>→ elicitationAgent |
+| **Supervisor Routing** | Analyze user intent + current mode | → chatAgent<br>→ elicitationAgent<br>→ reviewAgent |
 | **Elicitation Focus** | Check if first entry (collectedFields empty) | First → Analyze full history<br>Subsequent → Focus on latest + full history context |
 | **Field Extraction** | Single LLM call with `FieldExtractionSchema` | Extract: updates, marked_unknown, reasoning, followup_response |
 | **Completion Check** | All required fields filled OR marked unknown | Complete → teamMatching<br>Incomplete → END (ask more) |
-| **Team Matching** | LLM analyzes fields against all team descriptions | team_id found → mode=REVIEW<br>team_id null → mode=CHAT (no match) |
+| **Team Matching** | LLM analyzes fields against all team descriptions | team_id found → formatReviewMessage + mode=REVIEW<br>team_id null → mode=CHAT (no match) |
 | **No Match Handling** | Separate LLM call with dedicated prompt | Play back info + ask for more detail → CHAT mode |
+| **Review Action Classification** | LLM classifies user's response to review | confirm → SharePoint<br>modify → ELICITATION<br>abandon → CHAT (clear state)<br>clarify → REVIEW (stay) |
+| **SharePoint Submission** | Call submitToSharePoint stub | Success → return URL + mode=CHAT<br>Failure → error + mode=REVIEW (retry) |
 
-## Tools & Helpers (Phase 1-4)
+## Tools & Helpers (Phase 1-5)
 
 ```mermaid
 graph LR
@@ -204,10 +252,12 @@ graph LR
 
     subgraph Prompts
         TeamPrompts[teamMatching.ts<br/>- getTeamMatchingPrompt<br/>- getNoMatchFoundPrompt]
+        ReviewPrompt[reviewAgent.ts<br/>- getReviewAgentPrompt]
     end
 
     subgraph Functions
         Check[checkCompletion.ts<br/>Completion logic]
+        SharePoint[sharepoint.ts<br/>- submitToSharePoint stub]
     end
 
     ElicitAgent[ElicitationAgent] --> Fields
@@ -218,10 +268,14 @@ graph LR
     TeamAgent --> TeamPrompts
     TeamAgent --> Extract
 
+    ReviewAgentNode[ReviewAgent] --> ReviewPrompt
+    ReviewAgentNode --> SharePoint
+    ReviewAgentNode --> Extract
+
     classDef config fill:#fff4e1,stroke:#333,stroke-width:1px
     classDef tool fill:#e1ffe1,stroke:#333,stroke-width:1px
     class Fields,Teams config
-    class Extract,Check,TeamPrompts tool
+    class Extract,Check,TeamPrompts,ReviewPrompt,SharePoint tool
 ```
 
 ## Universal Front Door Fields (7 Total)
@@ -254,26 +308,46 @@ graph LR
   - 3 teams configured (Identity, Performance, Data Analytics)
   - Graceful "no match" handling with dedicated prompt
   - Automatic fallback to CHAT mode if no suitable team
-- ⏳ **Phase 5**: Review & Submission (next)
-- ⏳ **Phase 6**: SharePoint Integration
+- ✅ **Phase 5**: Review & Submission (completed)
+  - ReviewAgent with 4 action types (confirm/modify/abandon/clarify)
+  - Deterministic review message construction (no extra LLM call)
+  - SharePoint stub tool for testing
+  - Full state management for submission tracking
+  - Graceful error handling with retry capability
+- ⏳ **Phase 6**: SharePoint Integration (next)
 
-## Phase 4 Implementation Details
+## Phase 4-5 Implementation Details
 
-### Team Matching Flow
+### Team Matching Flow (Phase 4)
 1. **LLM Analysis**: Uses `getTeamMatchingPrompt()` with all team descriptions and collected fields
 2. **Structured Output**: Returns `team_id` (or null), `confidence`, and `reasoning`
 3. **Success Path**:
+   - Calls `formatReviewMessage()` helper (deterministic, no LLM)
    - Updates state with `identifiedTeam` and `identifiedTeamName`
-   - Sets mode to `REVIEW` (Phase 5 stub)
-   - Returns success message to user
+   - Sets mode to `REVIEW`
+   - Returns formatted review message showing all fields + 4 action options
 4. **No Match Path**:
    - Separate LLM call with `getNoMatchFoundPrompt()`
    - Plays back collected information naturally
    - Asks user for more detail or different angle
    - Resets mode to `CHAT` for continued conversation
 
+### Review & Submission Flow (Phase 5)
+1. **User Sees Review**: TeamMatching displays review message with 4 options
+2. **User Responds**: Supervisor routes to ReviewAgent based on mode=REVIEW
+3. **Action Classification**: ReviewAgent uses structured output to identify action:
+   - **Confirm**: Calls `submitToSharePoint()` stub → Success message with URL → mode=CHAT
+   - **Modify**: Sets mode=ELICITATION → Supervisor routes back to ElicitationAgent → Re-extracts → TeamMatching runs again
+   - **Abandon**: Clears `collectedFields`, `identifiedTeam`, etc. → mode=CHAT
+   - **Clarify**: Answers user's question → Stays in REVIEW mode
+4. **Error Handling**: If SharePoint submission fails, stays in REVIEW with error message for retry
+
 ### Key Design Decisions
-- **Two separate prompts**: Focused prompts avoid pollution with unrelated instructions
+- **Two separate prompts (Phase 4)**: Focused prompts avoid pollution with unrelated instructions
 - **LLM over rules**: Semantic matching handles variations better than keyword matching
 - **Graceful degradation**: "No match" returns to conversation naturally
-- **Future-ready**: Easy to extend to vector search with 100+ teams
+- **No reviewDisplayed flag (Phase 5)**: TeamMatching constructs review message deterministically
+- **4 action types**: Comprehensive coverage of user intents during review
+- **State clearing on abandon**: Ensures clean slate for new requests
+- **Modify loops back to elicitation**: Leverages existing extraction logic
+- **Future-ready**: Easy to extend to vector search with 100+ teams and real SharePoint API
