@@ -32,7 +32,7 @@ You are gathering information to submit a request. Analyze the conversation and 
 **Fields to Collect (try to collect ONLY IF they have provided explicit values, otherwise mark as null or empty string):**
 ${remainingFields}
 
-**Fields Collected So Far:**
+**Fields Collected So Far (you can modify these if the user provides new information):**
 ${collectedSummary}
 
 **Current Status:**

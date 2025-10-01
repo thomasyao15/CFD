@@ -18,8 +18,8 @@ console.log("LANGCHAIN_API_KEY:", process.env.LANGCHAIN_API_KEY ? "SET" : "NOT S
 console.log("LANGCHAIN_PROJECT:", process.env.LANGCHAIN_PROJECT);
 
 // ============================================================================
-// PHASE 3: REQUIREMENTS ELICITATION LOOP
-// Full implementation with field extraction, pre-population, and completion checking
+// PHASE 4: TEAM MATCHING + ROUTING
+// Full implementation with LLM-based team identification
 // ============================================================================
 
 export const cfdAgent = new AgentApplicationBuilder().build();
@@ -56,7 +56,8 @@ function routeToAgent(state: AgentStateType): string {
 
 // ============================================================================
 // LANGGRAPH CONSTRUCTION
-// supervisor → (chatAgent | elicitationAgent) → [completion check] → END or teamMatching
+// supervisor → (chatAgent | elicitationAgent) → [completion check] → teamMatching → END
+// teamMatching can also route back to CHAT if no team found
 // ============================================================================
 
 const checkpointer = new MemorySaver();
@@ -80,7 +81,9 @@ const graphBuilder = new StateGraph(AgentState)
     elicitationAgent: END, // Still missing fields, return to user
     teamMatching: "teamMatching", // Complete, move to team matching
   })
-  // Team matching ends the flow (Phase 4 stub)
+  // Team matching always ends (handles both success and no-match internally)
+  // - Success: sets mode to REVIEW for Phase 5
+  // - No match: sets mode back to CHAT with helpful response
   .addEdge("teamMatching", END);
 
 const graph = graphBuilder.compile({ checkpointer });

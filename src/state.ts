@@ -5,7 +5,7 @@ import { CollectedFields } from "./config/fields";
 /**
  * Mode the agent is currently operating in
  */
-export type AgentMode = "CHAT" | "ELICITATION" | "TEAM_MATCHING";
+export type AgentMode = "CHAT" | "ELICITATION" | "TEAM_MATCHING" | "REVIEW";
 
 /**
  * Shared state across all agents in the supervisor pattern
@@ -24,6 +24,7 @@ export const AgentState = Annotation.Root({
    * - CHAT: General conversation
    * - ELICITATION: Gathering requirements for request submission
    * - TEAM_MATCHING: Identifying the appropriate team (Phase 4)
+   * - REVIEW: User reviewing collected data before submission (Phase 5)
    */
   mode: Annotation<AgentMode>({
     reducer: (_, y) => y ?? "CHAT",
@@ -54,6 +55,22 @@ export const AgentState = Annotation.Root({
   fieldsMarkedUnknown: Annotation<string[]>({
     reducer: (x, y) => Array.from(new Set([...x, ...y])),
     default: () => [],
+  }),
+
+  /**
+   * Identified team after team matching (Phase 4)
+   */
+  identifiedTeam: Annotation<string | null>({
+    reducer: (_, y) => y ?? null,
+    default: () => null,
+  }),
+
+  /**
+   * Display name of identified team
+   */
+  identifiedTeamName: Annotation<string | null>({
+    reducer: (_, y) => y ?? null,
+    default: () => null,
   }),
 });
 
