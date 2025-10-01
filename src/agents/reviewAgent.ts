@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { SystemMessage, AIMessage } from "@langchain/core/messages";
-import { ChatOpenAI } from "@langchain/openai";
 import { AgentStateType } from "../state";
 import { getReviewAgentPrompt } from "../prompts/reviewAgent";
 import { submitToSharePoint } from "../tools/sharepoint";
+import { createLLM } from "../utils/llmFactory";
 
 /**
  * Zod schema for review action classification
@@ -22,10 +22,7 @@ const ReviewActionSchema = z.object({
     ),
 });
 
-const llm = new ChatOpenAI({
-  model: "gpt-5-nano",
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const llm = createLLM();
 
 /**
  * Review Agent (Phase 5)

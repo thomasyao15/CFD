@@ -3,18 +3,15 @@ import {
   HumanMessage,
   AIMessage,
 } from "@langchain/core/messages";
-import { ChatOpenAI } from "@langchain/openai";
 import { AgentStateType } from "../state";
 import { getElicitationAgentPrompt } from "../prompts/elicitationAgent";
 import {
   FieldExtractionSchema,
   isValidFieldValue,
 } from "../tools/fieldExtraction";
+import { createLLM } from "../utils/llmFactory";
 
-const llm = new ChatOpenAI({
-  model: "gpt-5-nano",
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const llm = createLLM();
 
 /**
  * ElicitationAgent - Simplified Single-Pass Implementation

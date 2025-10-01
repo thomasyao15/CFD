@@ -1,12 +1,9 @@
 import { SystemMessage } from "@langchain/core/messages";
-import { ChatOpenAI } from "@langchain/openai";
 import { AgentStateType } from "../state";
 import { CHAT_AGENT_PROMPT } from "../prompts/chatAgent";
+import { createLLM } from "../utils/llmFactory";
 
-const llm = new ChatOpenAI({
-  model: "gpt-5-nano",
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const llm = createLLM();
 
 /**
  * ChatAgent handles general conversation

@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { SystemMessage, AIMessage } from "@langchain/core/messages";
-import { ChatOpenAI } from "@langchain/openai";
 import { AgentStateType } from "../state";
 import { formatCollectedFieldsSummary } from "../tools/fieldExtraction";
 import { getTeamById, getAllTeamIds, TeamDefinition } from "../config/teams";
@@ -9,6 +8,7 @@ import {
   getNoMatchFoundPrompt,
 } from "../prompts/teamMatching";
 import { CollectedFields } from "../config/fields";
+import { createLLM } from "../utils/llmFactory";
 
 /**
  * Zod schema for team matching structured output
@@ -32,10 +32,7 @@ const TeamMatchingSchema = z.object({
     ),
 });
 
-const llm = new ChatOpenAI({
-  model: "gpt-5-nano",
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const llm = createLLM();
 
 /**
  * Format review message for user (no LLM call needed)

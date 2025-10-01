@@ -1,12 +1,9 @@
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
-import { ChatOpenAI } from "@langchain/openai";
 import { AgentStateType } from "../state";
 import { getSupervisorPrompt } from "../prompts/supervisor";
+import { createLLM } from "../utils/llmFactory";
 
-const llm = new ChatOpenAI({
-  model: "gpt-5-nano",
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const llm = createLLM();
 
 /**
  * Supervisor agent that routes between ChatAgent and ElicitationAgent
