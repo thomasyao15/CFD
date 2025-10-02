@@ -15,7 +15,13 @@ export const AgentState = Annotation.Root({
    * Conversation history
    */
   messages: Annotation<BaseMessage[]>({
-    reducer: (x, y) => x.concat(y),
+    reducer: (x, y) => {
+      // Check if any new message has the clear history flag
+      const shouldClear = y.some(
+        (msg) => msg.additional_kwargs?._clearHistory === true
+      );
+      return shouldClear ? y : x.concat(y);
+    },
     default: () => [],
   }),
 

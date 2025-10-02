@@ -42,7 +42,8 @@ ${collectedSummary}
 2. **No inference** - Don't interpret vague statements
 3. **CRITICAL - marked_unknown** - ONLY mark a field as unknown if the user explicitly said "I don't know" or clear equivalent
 4. **When uncertain** - Set field to null (NOT marked_unknown)
-5. **Abandonment Detection** - Set user_wants_to_abandon to true if user says: "cancel", "never mind", "forget it", "abandon this", "don't need this anymore", or similar clear abandonment signals
+5. **CRITICAL - Updates object** - ONLY fill out fields you want to update. Set all other fields to null - they will remain untouched. Do NOT copy existing field values.
+6. **Abandonment Detection** - Set user_wants_to_abandon to true if user says: "cancel", "never mind", "forget it", "abandon this", "don't need this anymore", or similar clear abandonment signals
 
 **SPECIAL FIELD RULES:**
 

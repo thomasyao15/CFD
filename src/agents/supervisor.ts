@@ -1,4 +1,5 @@
 import { HumanMessage, SystemMessage, AIMessage } from "@langchain/core/messages";
+import { END } from "@langchain/langgraph";
 import { AgentStateType } from "../state";
 import { getSupervisorPrompt } from "../prompts/supervisor";
 import { createLLM } from "../utils/llmFactory";
@@ -11,17 +12,23 @@ import { clearAll } from "../utils/stateClear";
 export async function supervisorAgent(
   state: AgentStateType
 ): Promise<Partial<AgentStateType>> {
-  // Check for debug "clear context" command
+  // Check for debug "clear context" command (only in dev mode)
   const lastMessage = state.messages[state.messages.length - 1];
   const userMessage = lastMessage?.content?.toString().trim().toLowerCase() || "";
+  const isDevMode = process.env.DEV_MODE === "true";
 
-  if (userMessage === "clear context") {
+  if (isDevMode && userMessage === "clear context") {
     console.log("[Supervisor] 🧹 Debug command: clearing all context");
 
     return {
       ...clearAll(),
-      messages: [new AIMessage("Context has been cleared.")],
-      next: "", // No routing - return control to user
+      messages: [
+        new AIMessage({
+          content: "Context has been cleared.",
+          additional_kwargs: { _clearHistory: true },
+        }),
+      ],
+      next: END, // Stop execution - return to user immediately
     };
   }
 

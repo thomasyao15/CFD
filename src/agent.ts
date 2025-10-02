@@ -44,6 +44,11 @@ function routeToAgent(state: AgentStateType): string {
 
   console.log(`[Router] Routing to: ${nextAgent}`);
 
+  // Handle END signal (e.g., from "clear context" command)
+  if (nextAgent === END || nextAgent === "") {
+    return END;
+  }
+
   // Route to the appropriate agent
   if (nextAgent === "elicitationAgent") {
     return "elicitationAgent";
@@ -79,6 +84,7 @@ const graphBuilder = new StateGraph(AgentState)
     chatAgent: "chatAgent",
     elicitationAgent: "elicitationAgent",
     reviewAgent: "reviewAgent",
+    [END]: END, // Handle END signal (e.g., from "clear context")
   })
   // ChatAgent returns to user
   .addEdge("chatAgent", END)

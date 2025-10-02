@@ -23,14 +23,14 @@ When mode is CHAT:
 - Route to **elicitationAgent** if user shows clear intent to submit a request
 
 When mode is ELICITATION:
-- Route to **elicitationAgent** to continue gathering requirements and answering field-related questions or abandoning request
+- Route to **elicitationAgent** to continue gathering requirements, answering field-related questions, abandoning requests or anything to do with the in-progress request
 - Route to **chatAgent** if user asks a question unrelated to their current request (e.g., general questions, off-topic discussions, different problems)
-- **Important**: If user asks anything NOT directly related to providing information for their in-progress request → route to chatAgent
+- **Important**: If user asks anything NOT directly related to their in-progress request → route to chatAgent
 
 When mode is REVIEW:
 - Route to **reviewAgent** for user's response about their pending submission (confirm/modify/abandon/clarify)
 - Route to **chatAgent** if user asks a question unrelated to the review/submission (e.g., general questions, new topics, different problems)
-- **Important**: If user asks anything NOT directly related to reviewing or submitting their current request → route to chatAgent
+- **Important**: If user asks anything NOT directly related to their current request → route to chatAgent
 
 **Intent Signals for Elicitation Mode:**
 - User explicitly says "I need to submit a request", "create a ticket", "I want to report an issue"
