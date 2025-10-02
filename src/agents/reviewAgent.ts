@@ -94,17 +94,13 @@ export async function reviewAgent(
 
       case "modify":
         console.log(
-          "[ReviewAgent] 🔄 User wants to modify - returning to ELICITATION"
+          "[ReviewAgent] 🔄 User wants to modify - routing to ElicitationAgent"
         );
         console.log("=".repeat(60) + "\n");
 
         return {
-          messages: [
-            new AIMessage(
-              `${result.response_to_user}\n\nWhat would you like to change?`
-            ),
-          ],
-          mode: "ELICITATION" as const, // Supervisor will route to ElicitationAgent
+          // No messages - let ElicitationAgent respond to user
+          mode: "ELICITATION" as const, // Will trigger direct route to ElicitationAgent
         };
 
       case "abandon":

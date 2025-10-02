@@ -62,6 +62,23 @@ function routeToAgent(state: AgentStateType): string {
   return "chatAgent";
 }
 
+/**
+ * Route from ReviewAgent based on action taken
+ * If user wants to modify, route directly to ElicitationAgent
+ * Otherwise, end the turn
+ */
+function routeAfterReview(state: AgentStateType): string {
+  // If mode changed to ELICITATION, route to elicitationAgent
+  if (state.mode === "ELICITATION") {
+    console.log("[Router] ReviewAgent → ElicitationAgent (modify detected)");
+    return "elicitationAgent";
+  }
+
+  // Otherwise, end (confirm/abandon/clarify all end)
+  console.log("[Router] ReviewAgent → END");
+  return END;
+}
+
 // ============================================================================
 // LANGGRAPH CONSTRUCTION
 // supervisor → (chatAgent | elicitationAgent | reviewAgent)
@@ -95,12 +112,13 @@ const graphBuilder = new StateGraph(AgentState)
   })
   // Team matching goes to review (or back to CHAT if no team found)
   .addEdge("teamMatching", END)
-  // Review agent always ends - it handles mode changes internally
-  // - Confirm: submits to SharePoint, mode=CHAT
-  // - Modify: mode=ELICITATION (supervisor routes back)
-  // - Abandon: clears state, mode=CHAT
-  // - Clarify: stays in REVIEW
-  .addEdge("reviewAgent", END);
+  // Review agent conditionally routes based on action
+  // - Modify: routes directly to elicitationAgent
+  // - Confirm/Abandon/Clarify: ends
+  .addConditionalEdges("reviewAgent", routeAfterReview, {
+    elicitationAgent: "elicitationAgent",
+    [END]: END,
+  });
 
 const graph = graphBuilder.compile({ checkpointer });
 

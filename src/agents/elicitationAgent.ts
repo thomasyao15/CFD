@@ -21,14 +21,14 @@ export async function elicitationAgent(
   state: AgentStateType
 ): Promise<Partial<AgentStateType>> {
   const llm = createLLM();
+  const isFirstEntry = Object.keys(state.collectedFields).length === 0;
 
-  console.log("[ElicitationAgent] Extracting fields from conversation history");
+  console.log(`[ElicitationAgent] ${isFirstEntry ? 'FIRST' : 'SUBSEQUENT'} turn - extracting fields`);
 
   const systemPrompt = getElicitationAgentPrompt(state);
 
   // Get the latest user message for focus guidance
   const lastMessage = state.messages[state.messages.length - 1];
-  const isFirstEntry = Object.keys(state.collectedFields).length === 0;
 
   // Build messages for structured output extraction
   const extractionMessages = [
