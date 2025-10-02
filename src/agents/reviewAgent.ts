@@ -4,6 +4,7 @@ import { AgentStateType } from "../state";
 import { getReviewAgentPrompt } from "../prompts/reviewAgent";
 import { submitToSharePoint } from "../tools/sharepoint";
 import { createLLM } from "../utils/llmFactory";
+import { clearRequestContext } from "../utils/stateClear";
 
 /**
  * Zod schema for review action classification
@@ -76,7 +77,7 @@ export async function reviewAgent(
               ),
             ],
             sharepoint_item_url: submissionResult.item_url,
-            mode: "CHAT" as const, // Return to chat after successful submission
+            ...clearRequestContext(), // Clear request context after successful submission
           };
         } else {
           return {
@@ -116,14 +117,7 @@ export async function reviewAgent(
               `${result.response_to_user}\n\nFeel free to start a new request anytime!`
             ),
           ],
-          // Clear all request-related state
-          collectedFields: {},
-          fieldsMarkedUnknown: [],
-          identifiedTeam: null,
-          identifiedTeamName: null,
-          sharepoint_item_url: null,
-          submission_error: null,
-          mode: "CHAT" as const,
+          ...clearRequestContext(), // Use centralized clear function
         };
 
       case "clarify":

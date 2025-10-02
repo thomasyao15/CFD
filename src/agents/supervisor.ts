@@ -1,7 +1,8 @@
-import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { HumanMessage, SystemMessage, AIMessage } from "@langchain/core/messages";
 import { AgentStateType } from "../state";
 import { getSupervisorPrompt } from "../prompts/supervisor";
 import { createLLM } from "../utils/llmFactory";
+import { clearAll } from "../utils/stateClear";
 
 /**
  * Supervisor agent that routes between ChatAgent and ElicitationAgent
@@ -10,6 +11,20 @@ import { createLLM } from "../utils/llmFactory";
 export async function supervisorAgent(
   state: AgentStateType
 ): Promise<Partial<AgentStateType>> {
+  // Check for debug "clear context" command
+  const lastMessage = state.messages[state.messages.length - 1];
+  const userMessage = lastMessage?.content?.toString().trim().toLowerCase() || "";
+
+  if (userMessage === "clear context") {
+    console.log("[Supervisor] 🧹 Debug command: clearing all context");
+
+    return {
+      ...clearAll(),
+      messages: [new AIMessage("Context has been cleared.")],
+      next: "", // No routing - return control to user
+    };
+  }
+
   const llm = createLLM();
   const systemPrompt = getSupervisorPrompt(state.mode);
 

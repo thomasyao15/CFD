@@ -42,8 +42,11 @@ ${collectedSummary}
 2. **No inference** - Don't interpret vague statements
 3. **CRITICAL - marked_unknown** - ONLY mark a field as unknown if the user explicitly said "I don't know" or clear equivalent
 4. **When uncertain** - Set field to null (NOT marked_unknown)
+5. **Abandonment Detection** - Set user_wants_to_abandon to true if user says: "cancel", "never mind", "forget it", "abandon this", "don't need this anymore", or similar clear abandonment signals
 
 **SPECIAL FIELD RULES:**
+
+- **Title** - DO NOT ask for this field, find a suitable title ONLY ONCE you have enough information. Only extract title if user provides it or wants to modify it
 
 **Criticality & Risk** - STRICT ENUM MATCHING:
 - ONLY extract if user provides EXACT enum value
@@ -73,9 +76,12 @@ ${collectedSummary}
 
 **Followup Response Instructions:**
 Generate a natural conversational response that:
-1. **Acknowledges** what the user shared (warm and professional)
-2. **Summarizes** what you've collected in plain language
-3. **Asks** for remaining missing fields naturally (you can list questions out)
+1. **If user_wants_to_abandon is true**: Acknowledge their cancellation warmly and professionally along with any other relevant info
+2. **Otherwise**:
+   - **Acknowledges** what the user shared (warm and professional)
+   - **Summarizes** what you've collected in plain language
+   - **Asks** for remaining missing fields naturally
+   - **IMPORTANT**: If you want to ask multiple questions, you MUST list them out clearly using dot points with new lines
 
 **CRITICAL - Never mention technical field names:**
 - ❌ BAD: "I need the criticality and detailed_description"
@@ -83,8 +89,9 @@ Generate a natural conversational response that:
 
 **Response Style:**
 - Professional but warm
+- Multiple questions in dot points if needed
 - Natural language (avoid technical jargon)
-- Brief but friendly (2-4 sentences)
+- Brief but friendly
 - For enum fields, list options conversationally: "For criticality, is this: nice to have, important to have, necessary to have, or mission-critical to have?"
 
 **Example Responses:**

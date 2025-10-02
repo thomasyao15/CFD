@@ -10,6 +10,7 @@ import {
   isValidFieldValue,
 } from "../tools/fieldExtraction";
 import { createLLM } from "../utils/llmFactory";
+import { clearRequestContext } from "../utils/stateClear";
 
 /**
  * ElicitationAgent - Simplified Single-Pass Implementation
@@ -50,6 +51,24 @@ export async function elicitationAgent(
     );
     const extraction = await llmWithStructuredOutput.invoke(extractionMessages);
 
+    console.log(`[ElicitationAgent] Reasoning: ${extraction.reasoning}`);
+    console.log(
+      `[ElicitationAgent] Response: ${extraction.followup_response.substring(
+        0,
+        100
+      )}...`
+    );
+
+    // Check if user wants to abandon the request
+    if (extraction.user_wants_to_abandon) {
+      console.log("[ElicitationAgent] ❌ User abandoned request - clearing state");
+
+      return {
+        messages: [new AIMessage(extraction.followup_response)],
+        ...clearRequestContext(),
+      };
+    }
+
     // Filter out invalid/empty values using centralized validation
     const nonNullUpdates = Object.fromEntries(
       Object.entries(extraction.updates).filter(([_, value]) =>
@@ -61,13 +80,6 @@ export async function elicitationAgent(
       `[ElicitationAgent] Extracted ${
         Object.keys(nonNullUpdates).length
       } field updates, ${extraction.marked_unknown.length} marked unknown`
-    );
-    console.log(`[ElicitationAgent] Reasoning: ${extraction.reasoning}`);
-    console.log(
-      `[ElicitationAgent] Response: ${extraction.followup_response.substring(
-        0,
-        100
-      )}...`
     );
 
     // Return the followup response from structured output (no second LLM call needed)

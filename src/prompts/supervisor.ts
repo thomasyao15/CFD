@@ -23,7 +23,7 @@ When mode is CHAT:
 - Route to **elicitationAgent** if user shows clear intent to submit a request
 
 When mode is ELICITATION:
-- Route to **elicitationAgent** to continue gathering requirements and answering field-related questions
+- Route to **elicitationAgent** to continue gathering requirements and answering field-related questions or abandoning request
 - Route to **chatAgent** if user asks a question unrelated to their current request (e.g., general questions, off-topic discussions, different problems)
 - **Important**: If user asks anything NOT directly related to providing information for their in-progress request → route to chatAgent
 

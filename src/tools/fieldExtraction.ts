@@ -68,6 +68,13 @@ export const FieldExtractionSchema = z.object({
     .describe(
       "Natural conversational response that: (1) Acknowledges what the user shared, (2) Summarizes what's been collected so far, (3) Asks for remaining missing fields naturally without mentioning technical field names. Be warm, professional, and helpful. For multi-select fields like strategic alignment or dependencies, ask naturally about business outcomes or blockers."
     ),
+
+  /** Whether user wants to abandon the request */
+  user_wants_to_abandon: z
+    .boolean()
+    .describe(
+      "True if user explicitly wants to cancel/abandon this request (e.g., 'cancel', 'never mind', 'forget it', 'abandon this', 'don't need this'). False otherwise."
+    ),
 });
 
 export type FieldExtraction = z.infer<typeof FieldExtractionSchema>;
