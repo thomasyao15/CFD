@@ -13,17 +13,14 @@ export async function supervisorAgent(
   const llm = createLLM();
   const systemPrompt = getSupervisorPrompt(state.mode);
 
-  // Get the last user message for analysis
-  // TODO: Consider more context or conversation history to decide routing
-  const lastMessage = state.messages[state.messages.length - 1];
-  const userMessage = lastMessage?.content || "";
+  // Get last 5 messages (or fewer if conversation is shorter) for better context
+  const recentMessages = state.messages.slice(-5);
 
-  // Ask the LLM to make a routing decision
+  // Ask the LLM to make a routing decision with recent conversation context
   const response = await llm.invoke([
     new SystemMessage(systemPrompt),
-    new HumanMessage(
-      `Latest user message: "${userMessage}"\n\nWhich agent should handle this?`
-    ),
+    ...recentMessages,
+    new HumanMessage("Which agent should handle this?"),
   ]);
 
   const decision = response.content.toString().trim().toLowerCase();

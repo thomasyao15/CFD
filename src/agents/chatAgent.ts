@@ -1,16 +1,20 @@
 import { SystemMessage } from "@langchain/core/messages";
 import { AgentStateType } from "../state";
-import { CHAT_AGENT_PROMPT } from "../prompts/chatAgent";
+import { getChatAgentPrompt } from "../prompts/chatAgent";
 import { createLLM } from "../utils/llmFactory";
 
 /**
  * ChatAgent handles general conversation
  * Responds naturally to user messages without structured data collection
+ * Adapts behavior based on mode (CHAT/ELICITATION/REVIEW)
  */
 export async function chatAgent(
   state: AgentStateType
 ): Promise<Partial<AgentStateType>> {
   const llm = createLLM();
+
+  // Generate mode-aware system prompt
+  const systemPrompt = getChatAgentPrompt(state.mode);
 
   // Add system prompt if not already present
   const hasSystemMessage = state.messages.some(
@@ -19,12 +23,12 @@ export async function chatAgent(
 
   const messages = hasSystemMessage
     ? state.messages
-    : [new SystemMessage(CHAT_AGENT_PROMPT), ...state.messages];
+    : [new SystemMessage(systemPrompt), ...state.messages];
 
   // Get response from LLM
   const response = await llm.invoke(messages);
 
-  console.log(`[ChatAgent] Generated response`);
+  console.log(`[ChatAgent] Generated response (mode: ${state.mode})`);
 
   return {
     messages: [response],

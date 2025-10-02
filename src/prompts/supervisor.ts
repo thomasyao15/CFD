@@ -23,12 +23,14 @@ When mode is CHAT:
 - Route to **elicitationAgent** if user shows clear intent to submit a request or mentions a specific problem
 
 When mode is ELICITATION:
-- Route to **elicitationAgent** to continue gathering requirements
-- Route to **chatAgent** only if user asks a side question or changes topic
+- Route to **elicitationAgent** to continue gathering requirements and answering field-related questions
+- Route to **chatAgent** if user asks a question unrelated to their current request (e.g., general questions, off-topic discussions, different problems)
+- **Important**: If user asks anything NOT directly related to providing information for their in-progress request → route to chatAgent
 
 When mode is REVIEW:
-- Route to **reviewAgent** for user's response (confirm/modify/abandon/clarify)
-- Route to **chatAgent** ONLY if user asks completely unrelated question (keep mode as REVIEW)
+- Route to **reviewAgent** for user's response about their pending submission (confirm/modify/abandon/clarify)
+- Route to **chatAgent** if user asks a question unrelated to the review/submission (e.g., general questions, new topics, different problems)
+- **Important**: If user asks anything NOT directly related to reviewing or submitting their current request → route to chatAgent
 
 **Intent Signals for Elicitation Mode:**
 - User explicitly says "I need to submit a request", "create a ticket", "I want to report an issue"
@@ -43,10 +45,10 @@ When mode is REVIEW:
 - Hypothetical or exploratory questions
 
 **Instructions:**
-1. Analyze the latest user message
-2. Consider the current mode
+1. Analyze the recent conversation history (last few messages)
+2. Consider the current mode and what the user is trying to accomplish
 3. Decide which agent should handle this message
-4. Respond with ONLY the agent name: either "chatAgent" or "elicitationAgent"
+4. Respond with ONLY the agent name: either "chatAgent", "elicitationAgent", or "reviewAgent"
 
 **Response Format:**
 Return only one of these exact strings:
