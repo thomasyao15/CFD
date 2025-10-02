@@ -1,7 +1,10 @@
 import { z } from "zod";
 import { SystemMessage, AIMessage } from "@langchain/core/messages";
 import { AgentStateType } from "../state";
-import { formatCollectedFieldsSummary } from "../tools/fieldExtraction";
+import {
+  formatCollectedFieldsSummary,
+  formatCollectedFieldsForUser,
+} from "../tools/fieldExtraction";
 import { getTeamById, getAllTeamIds, TeamDefinition } from "../config/teams";
 import {
   getTeamMatchingPrompt,
@@ -34,29 +37,21 @@ const TeamMatchingSchema = z.object({
 
 /**
  * Format review message for user (no LLM call needed)
- * Displays collected information and explains the 4 possible actions
+ * Displays collected information in user-friendly format
  */
 function formatReviewMessage(
   fields: Partial<CollectedFields>,
   team: TeamDefinition,
   fieldsMarkedUnknown: string[]
 ): string {
-  const summary = formatCollectedFieldsSummary(fields, fieldsMarkedUnknown);
+  const summary = formatCollectedFieldsForUser(fields, fieldsMarkedUnknown);
 
   return `Perfect! I've gathered all the information and identified that the **${team.name}** is the best team to help with your request.
 
-**Here's what I have:**
+Here's what I have:
 ${summary}
 
-**Assigned Team:** ${team.name}
-
-**What would you like to do?**
-- **Confirm** - Submit this request to the team
-- **Modify** - Make changes to any of the information
-- **Abandon** - Cancel this request
-- **Ask questions** - I can clarify anything about your request
-
-Please let me know how you'd like to proceed!`;
+Is there anything you'd like to change? If you are happy with this, I can submit this for you.`;
 }
 
 /**

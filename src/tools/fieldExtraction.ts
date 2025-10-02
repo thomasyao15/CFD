@@ -183,6 +183,30 @@ export function formatCollectedFieldsSummary(
 }
 
 /**
+ * Format collected fields for user-friendly display
+ * Uses field labels instead of snake_case names
+ */
+export function formatCollectedFieldsForUser(
+  collectedFields: Partial<CollectedFields>,
+  fieldsMarkedUnknown: string[]
+): string {
+  const lines: string[] = [];
+
+  for (const field of UNIVERSAL_FIELDS) {
+    const value = collectedFields[field.name as keyof CollectedFields];
+    const markedUnknown = fieldsMarkedUnknown.includes(field.name);
+
+    if (isValidFieldValue(value)) {
+      lines.push(`- **${field.label}:** ${value}`);
+    } else if (markedUnknown) {
+      lines.push(`- **${field.label}:** (not provided)`);
+    }
+  }
+
+  return lines.length > 0 ? lines.join("\n") : "(none yet)";
+}
+
+/**
  * Check if all required fields are complete
  */
 export function areAllRequiredFieldsComplete(

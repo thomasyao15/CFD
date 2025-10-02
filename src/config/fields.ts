@@ -30,6 +30,8 @@ export type StrategicPillar =
 export interface FieldDefinition {
   /** Unique field identifier */
   name: string;
+  /** User-friendly label for display */
+  label: string;
   /** Data type of the field */
   type: FieldType;
   /** Whether this field must be collected */
@@ -55,6 +57,7 @@ export interface FieldDefinition {
 export const UNIVERSAL_FIELDS: FieldDefinition[] = [
   {
     name: "title",
+    label: "Title",
     type: "string",
     required: true,
     description: "Brief description of the work being requested (project title)",
@@ -64,6 +67,7 @@ export const UNIVERSAL_FIELDS: FieldDefinition[] = [
   },
   {
     name: "detailed_description",
+    label: "Detailed Description",
     type: "string",
     required: true,
     description: "2-3 sentences describing the work including tools, timelines, current state, stakeholders, and details",
@@ -75,6 +79,7 @@ export const UNIVERSAL_FIELDS: FieldDefinition[] = [
   },
   {
     name: "criticality",
+    label: "Criticality",
     type: "enum",
     required: true,
     description: "Criticality to the business",
@@ -86,6 +91,7 @@ export const UNIVERSAL_FIELDS: FieldDefinition[] = [
   },
   {
     name: "dependencies",
+    label: "Dependencies",
     type: "multi-select",
     required: false,
     description: "Dependencies that must be resolved before work can proceed",
@@ -107,6 +113,7 @@ export const UNIVERSAL_FIELDS: FieldDefinition[] = [
   },
   {
     name: "strategic_alignment",
+    label: "Strategic Alignment",
     type: "multi-select",
     required: true,
     description: "Alignment with AustralianSuper's 2035 strategic pillars",
@@ -122,6 +129,7 @@ export const UNIVERSAL_FIELDS: FieldDefinition[] = [
   },
   {
     name: "benefits",
+    label: "Benefits",
     type: "string",
     required: true,
     description: "What is finally different and/or better because of this work",
@@ -135,6 +143,7 @@ export const UNIVERSAL_FIELDS: FieldDefinition[] = [
   },
   {
     name: "demand_sponsor",
+    label: "Demand Sponsor",
     type: "string",
     required: true,
     description: "Person sponsoring the work (team lead, department head, or requester)",
@@ -144,6 +153,7 @@ export const UNIVERSAL_FIELDS: FieldDefinition[] = [
   },
   {
     name: "risk",
+    label: "Risk Level",
     type: "enum",
     required: true,
     description: "Level of risk this project addresses",
@@ -155,6 +165,7 @@ export const UNIVERSAL_FIELDS: FieldDefinition[] = [
   },
   {
     name: "other_details",
+    label: "Other Details",
     type: "string",
     required: false,
     description: "Any additional information not captured in other fields",
