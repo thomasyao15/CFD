@@ -13,29 +13,33 @@ export const FieldExtractionSchema = z.object({
   /** Fields that were successfully extracted with values */
   updates: z
     .object({
-      request_summary: z.string().nullable(),
-      business_impact: z.string().nullable(),
-      urgency: z.enum(["low", "medium", "high", "critical"]).nullable(),
-      affected_users: z.string().nullable(),
-      request_type: z.enum(["incident", "service_request", "question", "access_request", "other"]).nullable(),
-      department: z.string().nullable(),
-      desired_resolution: z.string().nullable(),
+      title: z.string().nullable(),
+      detailed_description: z.string().nullable(),
+      criticality: z.enum(["nice to have", "important to have", "necessary to have", "mission-critical to have"]).nullable(),
+      dependencies: z.string().nullable(), // Comma-separated string
+      strategic_alignment: z.string().nullable(), // Comma-separated string
+      benefits: z.string().nullable(),
+      demand_sponsor: z.string().nullable(),
+      risk: z.enum(["Risk to a Single Team", "Risk to Multiple Teams", "Risk to Whole of Fund"]).nullable(),
+      other_details: z.string().nullable(),
     })
     .describe(
-      "Field values extracted from user's message. Set to null if not mentioned. Only include non-null values if you're confident (>80% confidence)."
+      "Field values extracted from user's message. Set to null if not mentioned. For criticality and risk: ONLY extract if user explicitly provides exact enum value. For dependencies and strategic_alignment: store as comma-separated strings."
     ),
 
   /** Fields that user explicitly said they don't know */
   marked_unknown: z
     .array(
       z.enum([
-        "request_summary",
-        "business_impact",
-        "urgency",
-        "affected_users",
-        "request_type",
-        "department",
-        "desired_resolution",
+        "title",
+        "detailed_description",
+        "criticality",
+        "dependencies",
+        "strategic_alignment",
+        "benefits",
+        "demand_sponsor",
+        "risk",
+        "other_details",
       ])
     )
     .describe(
@@ -62,7 +66,7 @@ export const FieldExtractionSchema = z.object({
   followup_response: z
     .string()
     .describe(
-      "Natural conversational response that: (1) Acknowledges what the user shared, (2) Summarizes what's been collected so far, (3) Asks for remaining missing fields naturally without mentioning field names like 'request_summary' or 'business_impact'. Be warm and helpful."
+      "Natural conversational response that: (1) Acknowledges what the user shared, (2) Summarizes what's been collected so far, (3) Asks for remaining missing fields naturally without mentioning technical field names. Be warm, professional, and helpful. For multi-select fields like strategic alignment or dependencies, ask naturally about business outcomes or blockers."
     ),
 });
 

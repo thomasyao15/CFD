@@ -1,14 +1,31 @@
 /**
- * Universal Front Door Field Configuration
- * Centralized definition of all required and optional fields for request submission
+ * AustralianSuper CFD Field Configuration
+ * Centralized definition of all required and optional fields for demand/change requests
  */
 
-export type FieldType = "string" | "enum" | "number";
-export type UrgencyLevel = "low" | "medium" | "high" | "critical";
-export type RequestType = "incident" | "service_request" | "question" | "access_request" | "other";
+export type FieldType = "string" | "enum" | "multi-select";
+export type CriticalityLevel = "nice to have" | "important to have" | "necessary to have" | "mission-critical to have";
+export type RiskLevel = "Risk to a Single Team" | "Risk to Multiple Teams" | "Risk to Whole of Fund";
+export type DependencyOption =
+  | "Funding approval"
+  | "Resource availability"
+  | "Technology readiness"
+  | "Executive or stakeholder sign-off"
+  | "Completion of another project or phase"
+  | "Access to data or systems"
+  | "Legal or regulatory clearance"
+  | "Third-party deliverables"
+  | "Training or capability building"
+  | "Other";
+export type StrategicPillar =
+  | "Market leading net performance"
+  | "Personalised guidance at scale"
+  | "Trustworthy financial institution"
+  | "Value at a competitive cost"
+  | "Talent & Culture";
 
 /**
- * Definition of a single field in the universal front door
+ * Definition of a single field in the CFD system
  */
 export interface FieldDefinition {
   /** Unique field identifier */
@@ -21,75 +38,128 @@ export interface FieldDefinition {
   description: string;
   /** Question to ask user when collecting this field */
   prompt: string;
-  /** For enum types: valid values */
+  /** For enum/multi-select types: valid values */
   enumValues?: string[];
+  /** Example values to show user */
+  examples?: string[];
   /** Optional validation function */
   validation?: (value: any) => boolean;
+  /** Special extraction rule */
+  extractionRule?: string;
 }
 
 /**
- * Universal Front Door Fields
- * These fields are required by all teams for request submission
+ * AustralianSuper CFD Fields
+ * Fields for demand/change request submission (excludes auto-populated fields)
  */
 export const UNIVERSAL_FIELDS: FieldDefinition[] = [
   {
-    name: "request_summary",
+    name: "title",
     type: "string",
     required: true,
-    description: "Brief 1-2 sentence description of the request",
-    prompt: "What issue are you experiencing or what do you need help with?",
-    validation: (value: string) => value && value.length >= 10,
-  },
-  {
-    name: "business_impact",
-    type: "string",
-    required: true,
-    description: "How this affects business operations or user work",
-    prompt: "How is this impacting your work or business operations?",
+    description: "Brief description of the work being requested (project title)",
+    prompt: "What's a brief title for this work request?",
+    examples: ["Automate monthly performance reporting", "Integrate Aladdin with WSO", "Build Power App for claims processing"],
     validation: (value: string) => value && value.length >= 5,
   },
   {
-    name: "urgency",
-    type: "enum",
+    name: "detailed_description",
+    type: "string",
     required: true,
-    description: "Timeline sensitivity of the request",
-    prompt: "How urgent is this? (low, medium, high, or critical)",
-    enumValues: ["low", "medium", "high", "critical"],
-    validation: (value: string) =>
-      ["low", "medium", "high", "critical"].includes(value.toLowerCase()),
+    description: "2-3 sentences describing the work including tools, timelines, current state, stakeholders, and details",
+    prompt: "Please provide 2-3 sentences describing the work needed, including tools, timelines, current state, and stakeholders",
+    examples: [
+      "We need to automate the monthly performance attribution reporting currently done manually in Excel. This involves integrating PowerBI with our Pearl system and should be completed by Q2. The Finance team will be the primary stakeholders.",
+    ],
+    validation: (value: string) => value && value.length >= 20,
   },
   {
-    name: "affected_users",
-    type: "string",
+    name: "criticality",
+    type: "enum",
+    required: true,
+    description: "Criticality to the business",
+    prompt: "What's the criticality to the business? (nice to have, important to have, necessary to have, or mission-critical to have)",
+    enumValues: ["nice to have", "important to have", "necessary to have", "mission-critical to have"],
+    extractionRule: "ONLY extract if user explicitly provides one of these exact values",
+    validation: (value: string) =>
+      ["nice to have", "important to have", "necessary to have", "mission-critical to have"].includes(value.toLowerCase()),
+  },
+  {
+    name: "dependencies",
+    type: "multi-select",
     required: false,
-    description: "Who else is impacted by this issue",
-    prompt: "Who else (individuals or teams) is affected by this issue?",
+    description: "Dependencies that must be resolved before work can proceed",
+    prompt: "Are there any dependencies? For example: funding approval, resource availability, technology readiness, or other blockers?",
+    enumValues: [
+      "Funding approval",
+      "Resource availability",
+      "Technology readiness",
+      "Executive or stakeholder sign-off",
+      "Completion of another project or phase",
+      "Access to data or systems",
+      "Legal or regulatory clearance",
+      "Third-party deliverables",
+      "Training or capability building",
+      "Other",
+    ],
+    examples: ["Funding approval", "Resource availability", "Technology readiness"],
+    extractionRule: "Suggest 2-3 common examples, don't show full list unless requested",
   },
   {
-    name: "request_type",
-    type: "enum",
+    name: "strategic_alignment",
+    type: "multi-select",
     required: true,
-    description: "Type of request being submitted",
-    prompt: "What type of request is this? (incident, service_request, question, access_request, or other)",
-    enumValues: ["incident", "service_request", "question", "access_request", "other"],
-    validation: (value: string) =>
-      ["incident", "service_request", "question", "access_request", "other"].includes(value.toLowerCase()),
+    description: "Alignment with AustralianSuper's 2035 strategic pillars",
+    prompt: "Which of AustralianSuper's strategic priorities does this support?",
+    enumValues: [
+      "Market leading net performance",
+      "Personalised guidance at scale",
+      "Trustworthy financial institution",
+      "Value at a competitive cost",
+      "Talent & Culture",
+    ],
+    extractionRule: "Use leading questions to elicit alignment if not explicitly stated. Strategic pillars: (1) Market leading net performance - delivering superior investment returns, (2) Personalised guidance at scale - tailored member experiences, (3) Trustworthy financial institution - security, compliance, and member confidence, (4) Value at a competitive cost - operational efficiency and cost-effectiveness, (5) Talent & Culture - workforce development and organizational capability",
   },
   {
-    name: "department",
+    name: "benefits",
     type: "string",
     required: true,
-    description: "Department or team making the request",
-    prompt: "What department or team are you from?",
+    description: "What is finally different and/or better because of this work",
+    prompt: "What is finally different and/or better because of this work?",
+    examples: [
+      "Reduces manual reporting time by 80%",
+      "Eliminates reconciliation errors",
+      "Improves member experience through faster claims processing",
+    ],
+    validation: (value: string) => value && value.length >= 10,
+  },
+  {
+    name: "demand_sponsor",
+    type: "string",
+    required: true,
+    description: "Person sponsoring the work (team lead, department head, or requester)",
+    prompt: "Who in the business is sponsoring this work? (team lead, department head, or yourself)",
+    examples: ["Jane Smith (Investment Operations Lead)", "John Doe (Head of Technology)", "Myself"],
     validation: (value: string) => value && value.length >= 2,
   },
   {
-    name: "desired_resolution",
-    type: "string",
+    name: "risk",
+    type: "enum",
     required: true,
-    description: "Expected outcome or resolution the user is seeking",
-    prompt: "What would a successful resolution look like for this request?",
-    validation: (value: string) => value && value.length >= 10,
+    description: "Level of risk this project addresses",
+    prompt: "What level of risk does this address? (Risk to a Single Team, Risk to Multiple Teams, or Risk to Whole of Fund)",
+    enumValues: ["Risk to a Single Team", "Risk to Multiple Teams", "Risk to Whole of Fund"],
+    extractionRule: "ONLY extract if user explicitly provides one of these exact values",
+    validation: (value: string) =>
+      ["Risk to a Single Team", "Risk to Multiple Teams", "Risk to Whole of Fund"].includes(value),
+  },
+  {
+    name: "other_details",
+    type: "string",
+    required: false,
+    description: "Any additional information not captured in other fields",
+    prompt: "Is there anything else we should know? (pre-existing work, people involved, budget, etc.)",
+    extractionRule: "ALWAYS prompt for this field. Accept any input without validation",
   },
 ];
 
@@ -97,13 +167,15 @@ export const UNIVERSAL_FIELDS: FieldDefinition[] = [
  * Type representing collected field values
  */
 export interface CollectedFields {
-  request_summary?: string;
-  business_impact?: string;
-  urgency?: UrgencyLevel;
-  affected_users?: string;
-  request_type?: RequestType;
-  department?: string;
-  desired_resolution?: string;
+  title?: string;
+  detailed_description?: string;
+  criticality?: CriticalityLevel;
+  dependencies?: string; // Comma-separated or JSON array
+  strategic_alignment?: string; // Comma-separated or JSON array
+  benefits?: string;
+  demand_sponsor?: string;
+  risk?: RiskLevel;
+  other_details?: string;
 }
 
 /**

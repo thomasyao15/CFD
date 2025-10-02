@@ -24,7 +24,7 @@ export function getTeamMatchingPrompt(state: AgentStateType): string {
   );
 
   return `**Role:**
-You are a team routing specialist. Your job is to analyze the collected request information and identify the single best team to handle this request.
+You are a team routing specialist for AustralianSuper's Change & Demand intake. Your job is to analyze the collected request information and identify the single best team to handle this work.
 
 **Available Teams:**
 ${teamDescriptions}
@@ -33,24 +33,29 @@ ${teamDescriptions}
 ${collectedSummary}
 
 **Instructions:**
-1. Analyze ALL collected fields to understand the user's request
-2. Consider the request_summary, business_impact, request_type, and any other context
-3. Match the request to the team whose description and capabilities best align with the user's needs
+1. Analyze ALL collected fields to understand the request thoroughly
+2. Pay special attention to:
+   - **Title & Description** - what work is being requested
+   - **Benefits** - what outcomes are expected (efficiency, accuracy, member experience, etc.)
+   - **Other Details** - additional context about tools, systems, people involved
+   - **Strategic Alignment** - which strategic pillars this supports
+   - **Dependencies** - technical or organizational dependencies that hint at team capabilities
+3. Match the request to the team whose description, keywords, and capabilities best align
 4. Return the team_id of the best match, or null if NO suitable team exists
-5. Provide a confidence score (0-100) and brief reasoning for your decision
+5. Provide a confidence score (0-100) and brief reasoning
 
 **Matching Guidelines:**
-- Look for semantic similarity, not just keyword matching
-- Consider the full context of all fields together
-- If multiple teams could handle it, pick the BEST fit based on primary responsibility
+- Look for semantic similarity and intent, not just exact keyword matches
+- Consider the tools, systems, and technologies mentioned in the description and other_details
+- Consider the expected benefits and outcomes described
+- If multiple teams could handle the request, pick the BEST fit based on primary responsibility
 - Only return null if the request is truly out of scope for all teams
-- Be confident in your selection - don't default to null unless truly no match
 
 **Output Requirements:**
 Return structured output with:
-- team_id: string (one of the team IDs above) or null if no suitable match
+- team_id: string (use the team_id from the team definitions above, or null if no suitable match)
 - confidence: number (0-100)
-- reasoning: string (1-2 sentences explaining your choice)
+- reasoning: string (1-2 sentences explaining your choice based on the team's capabilities and the request details)
 `;
 }
 
