@@ -32,8 +32,6 @@ const TeamMatchingSchema = z.object({
     ),
 });
 
-const llm = createLLM();
-
 /**
  * Format review message for user (no LLM call needed)
  * Displays collected information and explains the 4 possible actions
@@ -70,6 +68,8 @@ Please let me know how you'd like to proceed!`;
 export async function teamMatchingAgent(
   state: AgentStateType
 ): Promise<Partial<AgentStateType>> {
+  const llm = createLLM();
+
   console.log("\n" + "=".repeat(60));
   console.log("🎯 PHASE 4: TEAM MATCHING");
   console.log("=".repeat(60));

@@ -3,8 +3,6 @@ import { AgentStateType } from "../state";
 import { CHAT_AGENT_PROMPT } from "../prompts/chatAgent";
 import { createLLM } from "../utils/llmFactory";
 
-const llm = createLLM();
-
 /**
  * ChatAgent handles general conversation
  * Responds naturally to user messages without structured data collection
@@ -12,6 +10,8 @@ const llm = createLLM();
 export async function chatAgent(
   state: AgentStateType
 ): Promise<Partial<AgentStateType>> {
+  const llm = createLLM();
+
   // Add system prompt if not already present
   const hasSystemMessage = state.messages.some(
     (msg) => msg.getType() === "system"

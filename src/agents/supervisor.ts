@@ -3,8 +3,6 @@ import { AgentStateType } from "../state";
 import { getSupervisorPrompt } from "../prompts/supervisor";
 import { createLLM } from "../utils/llmFactory";
 
-const llm = createLLM();
-
 /**
  * Supervisor agent that routes between ChatAgent and ElicitationAgent
  * Analyzes user intent and current mode to make routing decisions
@@ -12,6 +10,7 @@ const llm = createLLM();
 export async function supervisorAgent(
   state: AgentStateType
 ): Promise<Partial<AgentStateType>> {
+  const llm = createLLM();
   const systemPrompt = getSupervisorPrompt(state.mode);
 
   // Get the last user message for analysis

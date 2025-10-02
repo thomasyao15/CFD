@@ -22,8 +22,6 @@ const ReviewActionSchema = z.object({
     ),
 });
 
-const llm = createLLM();
-
 /**
  * Review Agent (Phase 5)
  *
@@ -36,6 +34,8 @@ const llm = createLLM();
 export async function reviewAgent(
   state: AgentStateType
 ): Promise<Partial<AgentStateType>> {
+  const llm = createLLM();
+
   console.log("\n" + "=".repeat(60));
   console.log("📋 PHASE 5: REVIEW MODE");
   console.log("=".repeat(60));

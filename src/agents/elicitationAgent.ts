@@ -11,8 +11,6 @@ import {
 } from "../tools/fieldExtraction";
 import { createLLM } from "../utils/llmFactory";
 
-const llm = createLLM();
-
 /**
  * ElicitationAgent - Simplified Single-Pass Implementation
  * Performs extraction + response generation in a single LLM call
@@ -21,6 +19,8 @@ const llm = createLLM();
 export async function elicitationAgent(
   state: AgentStateType
 ): Promise<Partial<AgentStateType>> {
+  const llm = createLLM();
+
   console.log("[ElicitationAgent] Extracting fields from conversation history");
 
   const systemPrompt = getElicitationAgentPrompt(state);
