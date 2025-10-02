@@ -1,5 +1,5 @@
-import { AgentStateType } from "../state";
-import { formatCollectedFieldsSummary } from "../tools/fieldExtraction";
+import { AgentStateType } from "../core/state";
+import { formatCollectedFieldsSummary } from "../utils/formatting";
 
 /**
  * System prompt for the ReviewAgent

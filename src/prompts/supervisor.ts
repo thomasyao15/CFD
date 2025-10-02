@@ -1,4 +1,4 @@
-import { AgentMode } from "../state";
+import { AgentMode } from "../core/types";
 
 /**
  * System prompt for the Supervisor agent

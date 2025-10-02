@@ -1,21 +1,15 @@
-import {
-  SystemMessage,
-  HumanMessage,
-  AIMessage,
-} from "@langchain/core/messages";
-import { AgentStateType } from "../state";
+import { SystemMessage, AIMessage } from "@langchain/core/messages";
+import { AgentStateType } from "../core/state";
 import { getElicitationAgentPrompt } from "../prompts/elicitationAgent";
-import {
-  FieldExtractionSchema,
-  isValidFieldValue,
-} from "../tools/fieldExtraction";
-import { createLLM } from "../utils/llmFactory";
-import { clearRequestContext } from "../utils/stateClear";
+import { FieldExtractionSchema } from "../schemas/fieldExtraction";
+import { isValidFieldValue } from "../utils/validation";
+import { createLLM } from "../utils/llm";
+import { clearRequestContext } from "../utils/stateUtils";
+import { logger } from "../utils/logger";
 
 /**
- * ElicitationAgent - Simplified Single-Pass Implementation
- * Performs extraction + response generation in a single LLM call
- * Always analyzes full conversation history
+ * Gathers required fields for request submission through conversational interaction.
+ * Uses structured output to extract field values and generate natural responses.
  */
 export async function elicitationAgent(
   state: AgentStateType
@@ -23,45 +17,35 @@ export async function elicitationAgent(
   const llm = createLLM();
   const isFirstEntry = Object.keys(state.collectedFields).length === 0;
 
-  console.log(`[ElicitationAgent] ${isFirstEntry ? 'FIRST' : 'SUBSEQUENT'} turn - extracting fields`);
+  logger.debug("ElicitationAgent", { turn: isFirstEntry ? "first" : "subsequent" });
 
   const systemPrompt = getElicitationAgentPrompt(state);
-
-  // Get the latest user message for focus guidance
   const lastMessage = state.messages[state.messages.length - 1];
 
-  // Build messages for structured output extraction
   const extractionMessages = [
     new SystemMessage(systemPrompt),
-    ...state.messages, // Always pass full conversation history
+    ...state.messages,
   ];
 
-  // Add focus instruction for subsequent turns
   if (!isFirstEntry && lastMessage.getType() === "human") {
     extractionMessages.push(
       new SystemMessage(
-        `Focus on extracting from the latest user message: "${lastMessage.content}"\n\nBut also consider the full conversation history for context. Update any errors in the collected fields as needed.`
+        `Focus on: "${lastMessage.content}"\n\nConsider full history for context.`
       )
     );
   }
 
   try {
-    const llmWithStructuredOutput = llm.withStructuredOutput(
-      FieldExtractionSchema
-    );
+    const llmWithStructuredOutput = llm.withStructuredOutput(FieldExtractionSchema);
     const extraction = await llmWithStructuredOutput.invoke(extractionMessages);
 
-    console.log(`[ElicitationAgent] Reasoning: ${extraction.reasoning}`);
-    console.log(
-      `[ElicitationAgent] Response: ${extraction.followup_response.substring(
-        0,
-        100
-      )}...`
-    );
+    logger.debug("ElicitationAgent extraction", {
+      reasoning: extraction.reasoning,
+      response: extraction.followup_response.substring(0, 100) + "...",
+    });
 
-    // Check if user wants to abandon the request
     if (extraction.user_wants_to_abandon) {
-      console.log("[ElicitationAgent] ❌ User abandoned request - clearing state");
+      logger.info("User abandoned request");
 
       return {
         messages: [new AIMessage(extraction.followup_response)],
@@ -69,29 +53,24 @@ export async function elicitationAgent(
       };
     }
 
-    // Filter out invalid/empty values using centralized validation
     const nonNullUpdates = Object.fromEntries(
       Object.entries(extraction.updates).filter(([_, value]) =>
         isValidFieldValue(value)
       )
     );
 
-    console.log(
-      `[ElicitationAgent] Extracted ${
-        Object.keys(nonNullUpdates).length
-      } field updates`
-    );
+    logger.info("ElicitationAgent extraction complete", {
+      fieldsExtracted: Object.keys(nonNullUpdates).length,
+    });
 
-    // Return the followup response from structured output (no second LLM call needed)
-    // NOTE: Must manually merge because state reducers now use replacement semantics
+    // CRITICAL: Must manually merge because state reducers use replacement semantics
     return {
       messages: [new AIMessage(extraction.followup_response)],
       collectedFields: { ...state.collectedFields, ...nonNullUpdates },
     };
   } catch (error) {
-    console.error("[ElicitationAgent] Error during extraction:", error);
+    logger.error("ElicitationAgent extraction failed", error);
 
-    // Fallback: basic conversational response without extraction
     const fallbackResponse = await llm.invoke([
       new SystemMessage(systemPrompt),
       ...state.messages,

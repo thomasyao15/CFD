@@ -1,6 +1,6 @@
-import { AgentStateType } from "../state";
+import { AgentStateType } from "../core/state";
 import { TEAMS } from "../config/teams";
-import { formatCollectedFieldsSummary } from "../tools/fieldExtraction";
+import { formatCollectedFieldsSummary } from "../utils/formatting";
 
 /**
  * System prompt for LLM-based team matching
@@ -21,7 +21,7 @@ export function getTeamMatchingPrompt(state: AgentStateType): string {
   const collectedSummary = formatCollectedFieldsSummary(state.collectedFields);
 
   return `**Role:**
-You are a team routing specialist for AustralianSuper's Change & Demand intake. Your job is to analyze the collected request information and identify the single best team to handle this work.
+You are a team routing specialist for AustralianSuper requests. Your job is to analyze the collected request information and identify the single best team to handle this work.
 
 **Available Teams:**
 ${teamDescriptions}

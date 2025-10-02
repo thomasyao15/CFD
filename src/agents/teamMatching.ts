@@ -1,44 +1,20 @@
-import { z } from "zod";
 import { SystemMessage, AIMessage } from "@langchain/core/messages";
-import { AgentStateType } from "../state";
+import { AgentStateType } from "../core/state";
 import {
   formatCollectedFieldsSummary,
   formatCollectedFieldsForUser,
-} from "../tools/fieldExtraction";
-import { getTeamById, getAllTeamIds, TeamDefinition } from "../config/teams";
+} from "../utils/formatting";
+import { TEAMS } from "../config/teams";
 import {
   getTeamMatchingPrompt,
   getNoMatchFoundPrompt,
 } from "../prompts/teamMatching";
 import { CollectedFields } from "../config/fields";
-import { createLLM } from "../utils/llmFactory";
+import { TeamDefinition } from "../config/teams";
+import { createLLM } from "../utils/llm";
+import { createTeamMatchingSchema } from "../schemas/teamMatching";
+import { logger } from "../utils/logger";
 
-/**
- * Zod schema for team matching structured output
- */
-const TeamMatchingSchema = z.object({
-  team_id: z
-    .enum(getAllTeamIds() as [string, ...string[]])
-    .nullable()
-    .describe(
-      "ID of the team best suited to handle this request, or null if no suitable match"
-    ),
-  confidence: z
-    .number()
-    .min(0)
-    .max(100)
-    .describe("Confidence level in the team selection (0-100)"),
-  reasoning: z
-    .string()
-    .describe(
-      "Brief explanation of why this team was selected or why no match"
-    ),
-});
-
-/**
- * Format review message for user (no LLM call needed)
- * Displays collected information in user-friendly format
- */
 function formatReviewMessage(
   fields: Partial<CollectedFields>,
   team: TeamDefinition
@@ -54,66 +30,49 @@ Is there anything you'd like to change? If you are happy with this, I can submit
 }
 
 /**
- * Team Matching Agent (Phase 4)
- *
- * Analyzes collected fields and uses LLM to identify the best team to handle the request.
- * If no suitable team is found, generates a helpful response asking for more detail.
+ * Analyzes collected fields to identify the best team to handle the request.
+ * If no suitable team is found, asks for more details.
  */
 export async function teamMatchingAgent(
   state: AgentStateType
 ): Promise<Partial<AgentStateType>> {
   const llm = createLLM();
 
-  console.log("\n" + "=".repeat(60));
-  console.log("🎯 PHASE 4: TEAM MATCHING");
-  console.log("=".repeat(60));
-  console.log("\nAll required fields have been collected!");
-  console.log("\n" + formatCollectedFieldsSummary(state.collectedFields));
-  console.log("\n" + "=".repeat(60));
+  logger.info("TeamMatching started");
+  logger.debug("Collected fields", formatCollectedFieldsSummary(state.collectedFields));
 
   try {
-    // Step 1: Use LLM to match request to appropriate team
     const systemPrompt = getTeamMatchingPrompt(state);
-    const llmWithStructuredOutput =
-      llm.withStructuredOutput(TeamMatchingSchema);
+    const teamIds = TEAMS.map(t => t.id);
+    const TeamMatchingSchema = createTeamMatchingSchema(teamIds);
+    const llmWithStructuredOutput = llm.withStructuredOutput(TeamMatchingSchema);
 
-    console.log("[TeamMatching] Analyzing request to identify best team...");
     const result = await llmWithStructuredOutput.invoke([
       new SystemMessage(systemPrompt),
     ]);
 
-    console.log(
-      `[TeamMatching] Result: team_id=${result.team_id}, confidence=${result.confidence}%`
-    );
-    console.log(`[TeamMatching] Reasoning: ${result.reasoning}`);
+    logger.info("TeamMatching result", {
+      team: result.team_id,
+      confidence: result.confidence,
+      reasoning: result.reasoning,
+    });
 
-    // Step 2: Handle result based on whether team was found
     if (result.team_id !== null) {
-      // Success: Team found - construct review message and transition to REVIEW mode
-      const team = getTeamById(result.team_id);
+      const team = TEAMS.find(t => t.id === result.team_id);
       if (!team) {
         throw new Error(`Team not found: ${result.team_id}`);
       }
 
-      console.log(`[TeamMatching] ✅ Matched to: ${team.name}`);
-      console.log(`[TeamMatching] Transitioning to REVIEW mode`);
-      console.log("=".repeat(60) + "\n");
-
-      // Format review message (no LLM call needed)
       const reviewMessage = formatReviewMessage(state.collectedFields, team);
 
       return {
         messages: [new AIMessage(reviewMessage)],
         identifiedTeam: team.id,
         identifiedTeamName: team.name,
-        mode: "REVIEW" as const, // User will see review message and can choose action
+        mode: "REVIEW" as const,
       };
     } else {
-      // No match found: Use separate LLM call with dedicated prompt
-      console.log(
-        "[TeamMatching] ❌ No suitable team found - generating helpful response"
-      );
-      console.log("=".repeat(60) + "\n");
+      logger.info("No suitable team found");
 
       const noMatchPrompt = getNoMatchFoundPrompt(state);
       const helpfulResponse = await llm.invoke([
@@ -125,17 +84,14 @@ export async function teamMatchingAgent(
           ? helpfulResponse.content
           : JSON.stringify(helpfulResponse.content);
 
-      // Return to CHAT mode so user can provide more information
       return {
         messages: [new AIMessage(responseText)],
         mode: "CHAT" as const,
       };
     }
   } catch (error) {
-    console.error("[TeamMatching] Error during team matching:", error);
-    console.log("=".repeat(60) + "\n");
+    logger.error("TeamMatching error", error);
 
-    // Fallback: Return to chat with error message
     return {
       messages: [
         new AIMessage(

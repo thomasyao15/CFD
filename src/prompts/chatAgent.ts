@@ -1,4 +1,4 @@
-import { AgentMode } from "../state";
+import { AgentMode } from "../core/types";
 
 /**
  * Core chat agent prompt - shared across all modes

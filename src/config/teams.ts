@@ -1,11 +1,3 @@
-/**
- * Team Directory Configuration
- * Defines all teams that can receive requests through the Consolidated Front Door
- */
-
-/**
- * Definition of a team that can handle requests
- */
 export interface TeamDefinition {
   /** Unique team identifier */
   id: string;
@@ -21,10 +13,6 @@ export interface TeamDefinition {
   sharepoint_list_title: string;
 }
 
-/**
- * All available teams in the organization
- * AustralianSuper Change & Demand teams
- */
 export const TEAMS: TeamDefinition[] = [
   {
     id: "ops_change",
@@ -165,16 +153,3 @@ export const TEAMS: TeamDefinition[] = [
   },
 ];
 
-/**
- * Get team by ID
- */
-export function getTeamById(teamId: string): TeamDefinition | undefined {
-  return TEAMS.find((team) => team.id === teamId);
-}
-
-/**
- * Get all team IDs
- */
-export function getAllTeamIds(): string[] {
-  return TEAMS.map((team) => team.id);
-}

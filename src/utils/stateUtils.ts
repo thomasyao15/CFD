@@ -1,9 +1,4 @@
-import { AgentStateType } from "../state";
-
-/**
- * Centralized state clearing utilities
- * Ensures consistent cleanup behavior across all agents
- */
+import { AgentStateType } from "../core/state";
 
 /**
  * Clear request-related context only (preserves conversation history)

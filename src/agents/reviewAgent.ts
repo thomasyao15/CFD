@@ -1,31 +1,13 @@
-import { z } from "zod";
 import { SystemMessage, AIMessage } from "@langchain/core/messages";
-import { AgentStateType } from "../state";
+import { AgentStateType } from "../core/state";
 import { getReviewAgentPrompt } from "../prompts/reviewAgent";
 import { submitToSharePoint } from "../tools/sharepoint";
-import { createLLM } from "../utils/llmFactory";
-import { clearRequestContext } from "../utils/stateClear";
+import { createLLM } from "../utils/llm";
+import { clearRequestContext } from "../utils/stateUtils";
+import { ReviewActionSchema } from "../schemas/reviewAction";
+import { logger } from "../utils/logger";
 
 /**
- * Zod schema for review action classification
- */
-const ReviewActionSchema = z.object({
-  action_type: z
-    .enum(["confirm", "modify", "abandon", "clarify"])
-    .describe("The action the user wants to take"),
-  reasoning: z
-    .string()
-    .describe("Brief explanation of why you classified this action"),
-  response_to_user: z
-    .string()
-    .describe(
-      "Natural conversational response to the user based on their action"
-    ),
-});
-
-/**
- * Review Agent (Phase 5)
- *
  * Analyzes user's response during review mode and takes appropriate action:
  * - confirm: Submit to SharePoint
  * - modify: Return to ELICITATION mode
@@ -37,31 +19,24 @@ export async function reviewAgent(
 ): Promise<Partial<AgentStateType>> {
   const llm = createLLM();
 
-  console.log("\n" + "=".repeat(60));
-  console.log("📋 PHASE 5: REVIEW MODE");
-  console.log("=".repeat(60));
+  logger.info("ReviewAgent started");
 
   try {
-    // Step 1: Classify user's action using structured output
     const systemPrompt = getReviewAgentPrompt(state);
     const llmWithStructuredOutput = llm.withStructuredOutput(ReviewActionSchema);
 
-    console.log("[ReviewAgent] Analyzing user's review response...");
     const result = await llmWithStructuredOutput.invoke([
       new SystemMessage(systemPrompt),
-      ...state.messages, // Include conversation history for context
+      ...state.messages,
     ]);
 
-    console.log(`[ReviewAgent] Action: ${result.action_type}`);
-    console.log(`[ReviewAgent] Reasoning: ${result.reasoning}`);
+    logger.info("ReviewAgent action", {
+      action: result.action_type,
+      reasoning: result.reasoning,
+    });
 
-    // Step 2: Handle each action type
     switch (result.action_type) {
       case "confirm":
-        console.log("[ReviewAgent] ✅ User confirmed - submitting to SharePoint");
-        console.log("=".repeat(60) + "\n");
-
-        // Submit to SharePoint
         const submissionResult = await submitToSharePoint(
           state.identifiedTeam!,
           state.collectedFields
@@ -93,43 +68,28 @@ export async function reviewAgent(
         }
 
       case "modify":
-        console.log(
-          "[ReviewAgent] 🔄 User wants to modify - routing to ElicitationAgent"
-        );
-        console.log("=".repeat(60) + "\n");
-
         return {
-          // No messages - let ElicitationAgent respond to user
-          mode: "ELICITATION" as const, // Will trigger direct route to ElicitationAgent
+          mode: "ELICITATION" as const,
         };
 
       case "abandon":
-        console.log("[ReviewAgent] ❌ User abandoned request - clearing state");
-        console.log("=".repeat(60) + "\n");
-
         return {
           messages: [
             new AIMessage(
               `${result.response_to_user}\n\nFeel free to start a new request anytime!`
             ),
           ],
-          ...clearRequestContext(), // Use centralized clear function
+          ...clearRequestContext(),
         };
 
       case "clarify":
-        console.log(
-          "[ReviewAgent] ❓ User has questions - answering and staying in REVIEW"
-        );
-        console.log("=".repeat(60) + "\n");
-
         return {
           messages: [new AIMessage(result.response_to_user)],
-          mode: "REVIEW" as const, // Stay in review mode
+          mode: "REVIEW" as const,
         };
 
       default:
-        // Fallback - should never happen with enum, but TypeScript safety
-        console.error(`[ReviewAgent] Unknown action type: ${result.action_type}`);
+        logger.error("ReviewAgent unknown action", { action: result.action_type });
         return {
           messages: [
             new AIMessage(
@@ -140,10 +100,8 @@ export async function reviewAgent(
         };
     }
   } catch (error) {
-    console.error("[ReviewAgent] Error during review:", error);
-    console.log("=".repeat(60) + "\n");
+    logger.error("ReviewAgent error", error);
 
-    // Fallback: Stay in review with error message
     return {
       messages: [
         new AIMessage(
