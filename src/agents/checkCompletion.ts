@@ -6,13 +6,10 @@ import {
 
 /**
  * Check if elicitation is complete and ready for team matching
- * Returns true if all required fields are either filled or marked as unknown
+ * Returns true if all required fields are filled (including "not sure" values)
  */
 export function isElicitationComplete(state: AgentStateType): boolean {
-  return areAllRequiredFieldsComplete(
-    state.collectedFields,
-    state.fieldsMarkedUnknown
-  );
+  return areAllRequiredFieldsComplete(state.collectedFields);
 }
 
 /**
@@ -27,10 +24,7 @@ export function routeAfterElicitation(state: AgentStateType): string {
     return "teamMatching";
   }
 
-  const missing = getMissingRequiredFields(
-    state.collectedFields,
-    state.fieldsMarkedUnknown
-  );
+  const missing = getMissingRequiredFields(state.collectedFields);
 
   console.log(`[CompletionChecker] Still missing ${missing.length} required fields:`, missing);
   return "elicitationAgent";

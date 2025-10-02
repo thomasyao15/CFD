@@ -6,10 +6,7 @@ import { formatCollectedFieldsSummary } from "../tools/fieldExtraction";
  * Phase 5: Analyzing user's response during review mode
  */
 export function getReviewAgentPrompt(state: AgentStateType): string {
-  const collectedSummary = formatCollectedFieldsSummary(
-    state.collectedFields,
-    state.fieldsMarkedUnknown
-  );
+  const collectedSummary = formatCollectedFieldsSummary(state.collectedFields);
 
   return `**Role:**
 You are analyzing the user's response during the review phase of a request submission.

@@ -55,16 +55,6 @@ export const AgentState = Annotation.Root({
   }),
 
   /**
-   * Fields that user explicitly said they don't know
-   * Tracks which fields to stop asking about
-   * Uses replacement semantics - agents must merge manually for incremental updates
-   */
-  fieldsMarkedUnknown: Annotation<string[]>({
-    reducer: (_, y) => y,
-    default: () => [],
-  }),
-
-  /**
    * Identified team after team matching (Phase 4)
    */
   identifiedTeam: Annotation<string | null>({

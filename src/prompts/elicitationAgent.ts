@@ -32,7 +32,7 @@ ${fieldsList}
 3. **CRITICAL - Description field** - NEVER assume or infer the description. Must come from user's actual description of the problem. You MAY polish/reword what they said, but cannot make it up from vague context.
 4. **Title field** - DO NOT ask for title. You can infer it from collected information ONLY IF you have enough context.
 5. **Updates object** - ONLY fill out fields you want to update. Set all other fields to null.
-6. **marked_unknown** - ONLY mark if user explicitly said "I don't know" or clear equivalent for that field.
+6. **"not sure" value** - If user explicitly says "I don't know" for a field, set that field's value to "not sure"
 7. **Abandonment** - Set user_wants_to_abandon to true if user says: "cancel", "never mind", "forget it", etc.
 
 **Response Template:**
@@ -53,20 +53,11 @@ Feel free to answer as many as you can now, or we can go through them together!
  * Subsequent turn prompt - conversational follow-up with confident inference
  */
 export function getSubsequentElicitationPrompt(state: AgentStateType): string {
-  const remainingFields = formatRemainingFields(
-    state.collectedFields,
-    state.fieldsMarkedUnknown
-  );
+  const remainingFields = formatRemainingFields(state.collectedFields);
 
-  const collectedSummary = formatCollectedFieldsSummary(
-    state.collectedFields,
-    state.fieldsMarkedUnknown
-  );
+  const collectedSummary = formatCollectedFieldsSummary(state.collectedFields);
 
-  const completionPct = calculateCompletionPercentage(
-    state.collectedFields,
-    state.fieldsMarkedUnknown
-  );
+  const completionPct = calculateCompletionPercentage(state.collectedFields);
 
   return `**Role:**
 You are gathering information to submit a change/demand request. This is a FOLLOW-UP turn - you've already collected some information.
@@ -91,7 +82,7 @@ ${collectedSummary}
    - Benefits vague? → Ask for specific measurable outcomes
 5. **Title field** - DO NOT ask for title. You can liberally infer it from collected information when you have enough context.
 6. **Updates object** - ONLY fill out fields you want to update. Set all other fields to null - they will remain untouched.
-7. **marked_unknown** - ONLY mark if user explicitly said "I don't know" or clear equivalent for that field.
+7. **"not sure" value** - If user explicitly says "I don't know" for a field, set that field's value to "not sure"
 8. **Abandonment** - Set user_wants_to_abandon to true if user says: "cancel", "never mind", "forget it", etc.
 
 **Response Instructions:**

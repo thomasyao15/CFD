@@ -41,10 +41,9 @@ const TeamMatchingSchema = z.object({
  */
 function formatReviewMessage(
   fields: Partial<CollectedFields>,
-  team: TeamDefinition,
-  fieldsMarkedUnknown: string[]
+  team: TeamDefinition
 ): string {
-  const summary = formatCollectedFieldsForUser(fields, fieldsMarkedUnknown);
+  const summary = formatCollectedFieldsForUser(fields);
 
   return `Perfect! I've gathered all the information and identified that the **${team.name}** is the best team to help with your request.
 
@@ -69,13 +68,7 @@ export async function teamMatchingAgent(
   console.log("🎯 PHASE 4: TEAM MATCHING");
   console.log("=".repeat(60));
   console.log("\nAll required fields have been collected!");
-  console.log(
-    "\n" +
-      formatCollectedFieldsSummary(
-        state.collectedFields,
-        state.fieldsMarkedUnknown
-      )
-  );
+  console.log("\n" + formatCollectedFieldsSummary(state.collectedFields));
   console.log("\n" + "=".repeat(60));
 
   try {
@@ -107,11 +100,7 @@ export async function teamMatchingAgent(
       console.log("=".repeat(60) + "\n");
 
       // Format review message (no LLM call needed)
-      const reviewMessage = formatReviewMessage(
-        state.collectedFields,
-        team,
-        state.fieldsMarkedUnknown
-      );
+      const reviewMessage = formatReviewMessage(state.collectedFields, team);
 
       return {
         messages: [new AIMessage(reviewMessage)],

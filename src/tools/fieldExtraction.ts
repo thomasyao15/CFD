@@ -15,35 +15,16 @@ export const FieldExtractionSchema = z.object({
     .object({
       title: z.string().nullable(),
       detailed_description: z.string().nullable(),
-      criticality: z.enum(["nice to have", "important to have", "necessary to have", "mission-critical to have"]).nullable(),
+      criticality: z.enum(["nice to have", "important to have", "necessary to have", "mission-critical to have", "not sure"]).nullable(),
       dependencies: z.string().nullable(), // Comma-separated string
       strategic_alignment: z.string().nullable(), // Comma-separated string
       benefits: z.string().nullable(),
       demand_sponsor: z.string().nullable(),
-      risk: z.enum(["Risk to a Single Team", "Risk to Multiple Teams", "Risk to Whole of Fund"]).nullable(),
+      risk: z.enum(["Risk to a Single Team", "Risk to Multiple Teams", "Risk to Whole of Fund", "not sure"]).nullable(),
       other_details: z.string().nullable(),
     })
     .describe(
-      "Field values extracted from user's message. Set to null if not mentioned. For criticality and risk: ONLY extract if user explicitly provides exact enum value. For dependencies and strategic_alignment: store as comma-separated strings."
-    ),
-
-  /** Fields that user explicitly said they don't know */
-  marked_unknown: z
-    .array(
-      z.enum([
-        "title",
-        "detailed_description",
-        "criticality",
-        "dependencies",
-        "strategic_alignment",
-        "benefits",
-        "demand_sponsor",
-        "risk",
-        "other_details",
-      ])
-    )
-    .describe(
-      "Field names that the user explicitly said they don't know or can't provide"
+      "Field values extracted from user's message. Set to null if not mentioned. For criticality and risk: extract enum value or 'not sure' if user doesn't know. For string fields: use 'not sure' if user explicitly says they don't know. For dependencies and strategic_alignment: store as comma-separated strings."
     ),
 
   /** Overall confidence in the extraction (0-100) */
@@ -105,8 +86,7 @@ export function isValidFieldValue(value: any): boolean {
  * Get list of missing required fields
  */
 export function getMissingRequiredFields(
-  collectedFields: Partial<CollectedFields>,
-  fieldsMarkedUnknown: string[]
+  collectedFields: Partial<CollectedFields>
 ): string[] {
   const requiredFieldNames = UNIVERSAL_FIELDS.filter((f) => f.required).map(
     (f) => f.name
@@ -114,9 +94,7 @@ export function getMissingRequiredFields(
 
   return requiredFieldNames.filter((fieldName) => {
     const value = collectedFields[fieldName as keyof CollectedFields];
-    const hasValue = isValidFieldValue(value);
-    const markedUnknown = fieldsMarkedUnknown.includes(fieldName);
-    return !hasValue && !markedUnknown;
+    return !isValidFieldValue(value);
   });
 }
 
@@ -124,14 +102,11 @@ export function getMissingRequiredFields(
  * Get list of all missing fields (required + optional)
  */
 export function getAllMissingFields(
-  collectedFields: Partial<CollectedFields>,
-  fieldsMarkedUnknown: string[]
+  collectedFields: Partial<CollectedFields>
 ): string[] {
   return UNIVERSAL_FIELDS.map((f) => f.name).filter((fieldName) => {
     const value = collectedFields[fieldName as keyof CollectedFields];
-    const hasValue = isValidFieldValue(value);
-    const markedUnknown = fieldsMarkedUnknown.includes(fieldName);
-    return !hasValue && !markedUnknown;
+    return !isValidFieldValue(value);
   });
 }
 
@@ -140,13 +115,9 @@ export function getAllMissingFields(
  * Used in system prompt to show what still needs to be collected
  */
 export function formatRemainingFields(
-  collectedFields: Partial<CollectedFields>,
-  fieldsMarkedUnknown: string[]
+  collectedFields: Partial<CollectedFields>
 ): string {
-  const missingFields = getAllMissingFields(
-    collectedFields,
-    fieldsMarkedUnknown
-  );
+  const missingFields = getAllMissingFields(collectedFields);
 
   if (missingFields.length === 0) {
     return "(all fields collected)";
@@ -170,19 +141,15 @@ export function formatRemainingFields(
  * Used in system prompt so LLM knows what's been collected
  */
 export function formatCollectedFieldsSummary(
-  collectedFields: Partial<CollectedFields>,
-  fieldsMarkedUnknown: string[]
+  collectedFields: Partial<CollectedFields>
 ): string {
   const lines: string[] = [];
 
   for (const field of UNIVERSAL_FIELDS) {
     const value = collectedFields[field.name as keyof CollectedFields];
-    const markedUnknown = fieldsMarkedUnknown.includes(field.name);
 
     if (isValidFieldValue(value)) {
       lines.push(`- ${field.name}: "${value}"`);
-    } else if (markedUnknown) {
-      lines.push(`- ${field.name}: (user doesn't know)`);
     }
   }
 
@@ -194,19 +161,15 @@ export function formatCollectedFieldsSummary(
  * Uses field labels instead of snake_case names
  */
 export function formatCollectedFieldsForUser(
-  collectedFields: Partial<CollectedFields>,
-  fieldsMarkedUnknown: string[]
+  collectedFields: Partial<CollectedFields>
 ): string {
   const lines: string[] = [];
 
   for (const field of UNIVERSAL_FIELDS) {
     const value = collectedFields[field.name as keyof CollectedFields];
-    const markedUnknown = fieldsMarkedUnknown.includes(field.name);
 
     if (isValidFieldValue(value)) {
       lines.push(`- **${field.label}:** ${value}`);
-    } else if (markedUnknown) {
-      lines.push(`- **${field.label}:** (not provided)`);
     }
   }
 
@@ -217,13 +180,9 @@ export function formatCollectedFieldsForUser(
  * Check if all required fields are complete
  */
 export function areAllRequiredFieldsComplete(
-  collectedFields: Partial<CollectedFields>,
-  fieldsMarkedUnknown: string[]
+  collectedFields: Partial<CollectedFields>
 ): boolean {
-  const missingRequired = getMissingRequiredFields(
-    collectedFields,
-    fieldsMarkedUnknown
-  );
+  const missingRequired = getMissingRequiredFields(collectedFields);
   return missingRequired.length === 0;
 }
 
@@ -231,15 +190,12 @@ export function areAllRequiredFieldsComplete(
  * Calculate completion percentage
  */
 export function calculateCompletionPercentage(
-  collectedFields: Partial<CollectedFields>,
-  fieldsMarkedUnknown: string[]
+  collectedFields: Partial<CollectedFields>
 ): number {
   const totalFields = UNIVERSAL_FIELDS.length;
   const completedFields = UNIVERSAL_FIELDS.filter((field) => {
     const value = collectedFields[field.name as keyof CollectedFields];
-    const hasValue = isValidFieldValue(value);
-    const markedUnknown = fieldsMarkedUnknown.includes(field.name);
-    return hasValue || markedUnknown;
+    return isValidFieldValue(value);
   }).length;
 
   return Math.round((completedFields / totalFields) * 100);

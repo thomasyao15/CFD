@@ -18,10 +18,7 @@ export function getTeamMatchingPrompt(state: AgentStateType): string {
   ).join("\n---\n");
 
   // Format collected fields for analysis
-  const collectedSummary = formatCollectedFieldsSummary(
-    state.collectedFields,
-    state.fieldsMarkedUnknown
-  );
+  const collectedSummary = formatCollectedFieldsSummary(state.collectedFields);
 
   return `**Role:**
 You are a team routing specialist for AustralianSuper's Change & Demand intake. Your job is to analyze the collected request information and identify the single best team to handle this work.
@@ -64,10 +61,7 @@ Return structured output with:
  * Gracefully plays back collected info and asks user for more detail
  */
 export function getNoMatchFoundPrompt(state: AgentStateType): string {
-  const collectedSummary = formatCollectedFieldsSummary(
-    state.collectedFields,
-    state.fieldsMarkedUnknown
-  );
+  const collectedSummary = formatCollectedFieldsSummary(state.collectedFields);
 
   return `**Role:**
 You are helping a user whose request couldn't be matched to any available team.

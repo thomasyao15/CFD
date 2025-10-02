@@ -4,8 +4,8 @@
  */
 
 export type FieldType = "string" | "enum" | "multi-select";
-export type CriticalityLevel = "nice to have" | "important to have" | "necessary to have" | "mission-critical to have";
-export type RiskLevel = "Risk to a Single Team" | "Risk to Multiple Teams" | "Risk to Whole of Fund";
+export type CriticalityLevel = "nice to have" | "important to have" | "necessary to have" | "mission-critical to have" | "not sure";
+export type RiskLevel = "Risk to a Single Team" | "Risk to Multiple Teams" | "Risk to Whole of Fund" | "not sure";
 export type DependencyOption =
   | "Funding approval"
   | "Resource availability"
@@ -84,10 +84,10 @@ export const UNIVERSAL_FIELDS: FieldDefinition[] = [
     required: true,
     description: "Criticality to the business",
     prompt: "What's the criticality to the business? (nice to have, important to have, necessary to have, or mission-critical to have)",
-    enumValues: ["nice to have", "important to have", "necessary to have", "mission-critical to have"],
-    extractionRule: "ONLY extract if user explicitly provides one of these exact values",
+    enumValues: ["nice to have", "important to have", "necessary to have", "mission-critical to have", "not sure"],
+    extractionRule: "ONLY extract if user explicitly provides one of these exact values. Use 'not sure' if user doesn't know.",
     validation: (value: string) =>
-      ["nice to have", "important to have", "necessary to have", "mission-critical to have"].includes(value.toLowerCase()),
+      ["nice to have", "important to have", "necessary to have", "mission-critical to have", "not sure"].includes(value.toLowerCase()),
   },
   {
     name: "dependencies",
@@ -158,10 +158,10 @@ export const UNIVERSAL_FIELDS: FieldDefinition[] = [
     required: true,
     description: "Level of risk this project addresses",
     prompt: "What level of risk does this address? (Risk to a Single Team, Risk to Multiple Teams, or Risk to Whole of Fund)",
-    enumValues: ["Risk to a Single Team", "Risk to Multiple Teams", "Risk to Whole of Fund"],
-    extractionRule: "ONLY extract if user explicitly provides one of these exact values",
+    enumValues: ["Risk to a Single Team", "Risk to Multiple Teams", "Risk to Whole of Fund", "not sure"],
+    extractionRule: "ONLY extract if user explicitly provides one of these exact values. Use 'not sure' if user doesn't know.",
     validation: (value: string) =>
-      ["Risk to a Single Team", "Risk to Multiple Teams", "Risk to Whole of Fund"].includes(value),
+      ["Risk to a Single Team", "Risk to Multiple Teams", "Risk to Whole of Fund", "not sure"].includes(value),
   },
   {
     name: "other_details",

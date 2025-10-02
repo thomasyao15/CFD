@@ -79,7 +79,7 @@ export async function elicitationAgent(
     console.log(
       `[ElicitationAgent] Extracted ${
         Object.keys(nonNullUpdates).length
-      } field updates, ${extraction.marked_unknown.length} marked unknown`
+      } field updates`
     );
 
     // Return the followup response from structured output (no second LLM call needed)
@@ -87,9 +87,6 @@ export async function elicitationAgent(
     return {
       messages: [new AIMessage(extraction.followup_response)],
       collectedFields: { ...state.collectedFields, ...nonNullUpdates },
-      fieldsMarkedUnknown: Array.from(
-        new Set([...state.fieldsMarkedUnknown, ...extraction.marked_unknown])
-      ),
     };
   } catch (error) {
     console.error("[ElicitationAgent] Error during extraction:", error);

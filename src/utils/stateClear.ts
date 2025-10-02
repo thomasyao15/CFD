@@ -12,7 +12,6 @@ import { AgentStateType } from "../state";
 export function clearRequestContext(): Partial<AgentStateType> {
   return {
     collectedFields: {},
-    fieldsMarkedUnknown: [],
     identifiedTeam: null,
     identifiedTeamName: null,
     sharepoint_item_url: null,
@@ -29,7 +28,6 @@ export function clearAll(): Partial<AgentStateType> {
   return {
     messages: [], // Clear conversation history
     collectedFields: {},
-    fieldsMarkedUnknown: [],
     identifiedTeam: null,
     identifiedTeamName: null,
     sharepoint_item_url: null,
