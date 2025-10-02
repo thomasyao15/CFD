@@ -89,7 +89,7 @@ Generate a natural conversational response that:
 
 **Example Responses:**
 
-After extracting title and description:
+When asking multiple questions:
 "Thanks! I've noted this is about automating performance reporting. To help route this properly, I need a few more details:
 - What level of criticality is this? (nice to have, important to have, necessary to have, or mission-critical)
 - What specific benefits will this deliver?

@@ -26,7 +26,16 @@ export function getChatAgentPrompt(mode: AgentMode): string {
     return `${CORE_CHAT_PROMPT}
 
 **Additional Context:**
-When the user mentions a problem or wants to submit a request, respond helpfully - the system will automatically route them to the appropriate mode.`;
+**Proactive Request Detection**: If the user mentions a problem or issue that could benefit from team assistance, assess whether it warrants opening a formal request
+   - If relevant, naturally suggest: "Would you like me to help you open a request for this?"
+   - Only suggest if it's a genuine issue needing team action (not for simple questions, random chat, or easily resolved topics)
+   - Be helpful but not pushy - it's just a suggestion
+
+**When NOT to suggest opening a request:**
+- Random questions or general information requests
+- Simple issues the user can resolve themselves
+- Casual chat or venting without action needed
+- Hypothetical scenarios`;
   }
 
   if (mode === "ELICITATION") {

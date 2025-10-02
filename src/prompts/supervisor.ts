@@ -20,7 +20,7 @@ Your job is to analyze the current conversation and decide which specialized age
 
 When mode is CHAT:
 - Route to **chatAgent** for normal conversation
-- Route to **elicitationAgent** if user shows clear intent to submit a request or mentions a specific problem
+- Route to **elicitationAgent** if user shows clear intent to submit a request
 
 When mode is ELICITATION:
 - Route to **elicitationAgent** to continue gathering requirements and answering field-related questions
@@ -34,9 +34,8 @@ When mode is REVIEW:
 
 **Intent Signals for Elicitation Mode:**
 - User explicitly says "I need to submit a request", "create a ticket", "I want to report an issue"
-- User describes a specific problem with details
 - User asks "which team handles X?" or "who do I contact about Y?"
-- User provides problem details suggesting they want help
+- User suggests they need external help
 
 **Stay in Chat Mode When:**
 - Casual greetings or small talk
