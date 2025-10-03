@@ -1,9 +1,3 @@
-# CFD Multi-Agent System Architecture
-
-## System Overview
-
-The Consolidated Front Door (CFD) is a multi-agent conversational system that helps AustralianSuper employees submit change/demand requests to the appropriate team through natural conversation.
-
 ## Complete Conversation Flow
 
 ```mermaid
